@@ -1,12 +1,28 @@
 const express = require('express')
-const app = express()
 let cors = require('cors')
 const port = 3000
+const db = require('./mysql');
 
+const app = express()
+const conn = db.init();
+
+db.connect(conn);
 //cors처리, 저 cors()안에다가 cors조건을 걸 수 있음.
 app.use(cors())
 
+const userID = 1;
+const query = `SELECT * FROM user WHERE userID = ${userID}`;
 
+conn.query(query, (err, rows) => {
+    if (err) {
+        console.error('Error:', err);
+    } else {
+        console.log('Query result:', rows);
+    }
+
+    // 연결 종료
+    conn.end();
+});
 // 기본 주소인 '/'으로 요청이 들어오면 callback이므로 res.send~ 가 실행됩니다. 즉 아래의 listen을 통해 받은 요청의 안에 req가 담아져오고, res를 통해 내가 보내주면 되는듯
 app.get('/', (req, res) => {
     res.send('Hello World!')

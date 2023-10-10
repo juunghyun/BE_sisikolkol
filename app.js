@@ -28,6 +28,28 @@ app.get('/', (req, res) => {
     res.send('Hello World!')
 })
 
+app.post('/login', (req, res) => {
+    const { loginID } = req.body;
+
+    const query = 'SELECT userID, userName FROM user WHERE loginID = ?';
+    conn.query(query, [loginID], (err, rows) => {
+        if (err) {
+            console.error('Error:', err);
+            res.status(500).json({ error: 'Internal Server Error' });
+        } else {
+            if (rows.length > 0) {
+                const userInfo = {
+                    userID: rows[0].userID,
+                    userName: rows[0].userName
+                };
+                res.json(userInfo);
+            } else {
+                res.json({ error: 'User not found' });
+            }
+        }
+    });
+});
+
 app.get('/dog', (req, res) => {
     res.json({a: 30, b:40});
 })

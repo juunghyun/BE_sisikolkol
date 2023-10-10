@@ -9,6 +9,8 @@ const conn = db.init();
 db.connect(conn);
 //cors처리, 저 cors()안에다가 cors조건을 걸 수 있음.
 app.use(cors())
+//api 연결 시 body등 열수있도록 하기
+app.use(express.json());
 
 const userID = 1;
 const query = `SELECT * FROM user WHERE userID = ${userID}`;

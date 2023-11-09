@@ -16,6 +16,7 @@ app.use(express.json());
 const userID = 1;
 const query = `SELECT * FROM user WHERE userID = ${userID}`;
 
+
 conn.query(query, (err, rows) => {
     if (err) {
         console.error('Error:', err);
@@ -34,10 +35,11 @@ app.get('/', (req, res) => {
 app.post('/login', (req, res) => {
     const { loginID, loginPW } = req.body;
 
+    //password hashing
     const hashedPassword = crypto.createHash('sha256').update(loginPW).digest('hex');
 
 
-    const query = 'SELECT userID, userName, auth FROM user WHERE loginID = ? AND loginPW = ?';
+    const query = 'SELECT userID, userNickname, userName, auth FROM user WHERE loginID = ? AND loginPW = ?';
     //아래 query의 loginPW는 회원가입 api 작성 후 위의 hashedPassword로 변경
     conn.query(query, [loginID, loginPW], (err, rows) => {
         if (err) {
@@ -47,6 +49,7 @@ app.post('/login', (req, res) => {
             if (rows.length > 0) {
                 const userInfo = {
                     userID: rows[0].userID,
+                    userNickname: rows[0].userNickname,
                     userName: rows[0].userName,
                     auth: rows[0].auth
                 };

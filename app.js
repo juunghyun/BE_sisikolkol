@@ -3,6 +3,7 @@ let cors = require('cors')
 const port = 3000
 const db = require('./mysql');
 
+const crypto = require('crypto');
 const app = express()
 const conn = db.init();
 
@@ -31,10 +32,14 @@ app.get('/', (req, res) => {
 })
 
 app.post('/login', (req, res) => {
-    const { loginID } = req.body;
+    const { loginID, loginPW } = req.body;
 
-    const query = 'SELECT userID, userName FROM user WHERE loginID = ?';
-    conn.query(query, [loginID], (err, rows) => {
+    const hashedPassword = crypto.createHash('sha256').update(loginPW).digest('hex');
+
+
+    const query = 'SELECT userID, userName, auth FROM user WHERE loginID = ? AND loginPW = ?';
+    //아래 query의 loginPW는 회원가입 api 작성 후 위의 hashedPassword로 변경
+    conn.query(query, [loginID, loginPW], (err, rows) => {
         if (err) {
             console.error('Error:', err);
             res.status(500).json({ error: 'Internal Server Error' });
@@ -42,7 +47,8 @@ app.post('/login', (req, res) => {
             if (rows.length > 0) {
                 const userInfo = {
                     userID: rows[0].userID,
-                    userName: rows[0].userName
+                    userName: rows[0].userName,
+                    auth: rows[0].auth
                 };
                 res.json(userInfo);
             } else {

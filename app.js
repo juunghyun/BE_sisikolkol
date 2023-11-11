@@ -1,6 +1,6 @@
 const express = require('express')
 let cors = require('cors')
-const port = 3000
+const port = 8080
 const db = require('./mysql');
 
 const crypto = require('crypto');
@@ -9,7 +9,7 @@ const conn = db.init();
 
 db.connect(conn);
 //cors처리, 저 cors()안에다가 cors조건을 걸 수 있음.
-app.use(cors())
+app.use(cors());
 //api 연결 시 body등 열수있도록 하기
 app.use(express.json());
 
@@ -25,7 +25,7 @@ conn.query(query, (err, rows) => {
     }
 
     // 연결 종료
-    conn.end();
+    // conn.end();
 });
 // 기본 주소인 '/'으로 요청이 들어오면 callback이므로 res.send~ 가 실행됩니다. 즉 아래의 listen을 통해 받은 요청의 안에 req가 담아져오고, res를 통해 내가 보내주면 되는듯
 app.get('/', (req, res) => {
@@ -55,7 +55,7 @@ app.post('/login', (req, res) => {
                 };
                 res.json(userInfo);
             } else {
-                res.json({ error: 'User not found' });
+                res.status(400).send("user not found");
             }
         }
     });

@@ -61,6 +61,66 @@ app.post('/login', (req, res) => {
     });
 });
 
+//가게 정보 불러오기 api
+app.get('/bar/coordinate', async (req, res) => {
+    try {
+        // bar, bar_review, reservation 테이블에서 데이터를 가져오기 위한 쿼리
+        const query = `
+      SELECT 
+        b.barID, b.barName, b.barAddress, b.barType, 
+        b.barLatitude, b.barLongitude, b.barTag, b.barDetail, b.barCorkPrice,
+        br.barRatings, br.userNickname, br.barReviewDetail,
+        r.reservationTime
+      FROM bar AS b
+      LEFT JOIN bar_review AS br ON b.barID = br.barID
+      LEFT JOIN reservation AS r ON b.barID = r.barID
+      WHERE b.barID BETWEEN 1 AND 50
+    `;
+
+        const [rows] = await conn.query(query);
+
+        // 데이터를 원하는 구조로 정리
+        const result = rows.reduce((acc, row) => {
+            const existingBar = acc.find((bar) => bar.barID === row.barID);
+
+            if (!existingBar) {
+                acc.push({
+                    barID: row.barID,
+                    barName: row.barName,
+                    barAddress: row.barAddress,
+                    barType: row.barType,
+                    barLatitude: row.barLatitude,
+                    barLongitude: row.barLongitude,
+                    barTag: row.barTag,
+                    barDetail: row.barDetail,
+                    barCorkPrice: row.barCorkPrice,
+                    reviews: [{
+                        barRatings: row.barRatings,
+                        userNickname: row.userNickname,
+                        barReviewDetail: row.barReviewDetail,
+                    }],
+                    reservations: [row.reservationTime],
+                });
+            } else {
+                existingBar.reviews.push({
+                    barRatings: row.barRatings,
+                    userNickname: row.userNickname,
+                    barReviewDetail: row.barReviewDetail,
+                });
+
+                existingBar.reservations.push(row.reservationTime);
+            }
+
+            return acc;
+        }, []);
+
+        res.json(result);
+    } catch (error) {
+        console.error('에러:', error);
+        res.status(500).json({ error: '내부 서버 오류' });
+    }
+});
+
 app.get('/dog', (req, res) => {
     res.json({a: 30, b:40});
 })

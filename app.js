@@ -24,8 +24,6 @@ conn.query(query, (err, rows) => {
         console.log('Query result:', rows);
     }
 
-    // 연결 종료
-    // conn.end();
 });
 // 기본 주소인 '/'으로 요청이 들어오면 callback이므로 res.send~ 가 실행됩니다. 즉 아래의 listen을 통해 받은 요청의 안에 req가 담아져오고, res를 통해 내가 보내주면 되는듯
 app.get('/', (req, res) => {
@@ -64,62 +62,81 @@ app.post('/login', (req, res) => {
 //가게 정보 불러오기 api
 app.get('/bar/coordinate', async (req, res) => {
     try {
-        // bar, bar_review, reservation 테이블에서 데이터를 가져오기 위한 쿼리
-        const query = `
+        // 데이터베이스 연결 초기화
+        const conn = db.init();
+
+        // 데이터베이스 연결
+        db.connect(conn);
+
+        // bar 테이블에서 barID가 1부터 10까지인 데이터 가져오기
+        const barQuery = `
       SELECT 
-        b.barID, b.barName, b.barAddress, b.barType, 
-        b.barLatitude, b.barLongitude, b.barTag, b.barDetail, b.barCorkPrice,
-        br.barRatings, br.userNickname, br.barReviewDetail,
-        r.reservationTime
-      FROM bar AS b
-      LEFT JOIN bar_review AS br ON b.barID = br.barID
-      LEFT JOIN reservation AS r ON b.barID = r.barID
-      WHERE b.barID BETWEEN 1 AND 50
+        barID, barName, barAddress, barType, barLatitude, barLongitude, barTag, barDetail, barCorkPrice
+      FROM bar
+      WHERE barID BETWEEN 1 AND 10
     `;
 
-        const [rows] = await conn.query(query);
+        // reservation 테이블에서 해당 barID와 동일한 컬럼의 reservationTime 가져오기
+        const reservationQuery = `
+      SELECT 
+        barID, reservationTime
+      FROM reservation
+      WHERE barID BETWEEN 1 AND 10
+    `;
+
+        // bar_review 테이블에서 해당 barID와 동일한 컬럼의 데이터 가져오기
+        const reviewQuery = `
+      SELECT 
+        barID, userNickname, barStar, barReviewDetail
+      FROM bar_review
+      WHERE barID BETWEEN 1 AND 10
+    `;
+
+        // 쿼리 실행
+        const [barRows] = await conn.promise().query(barQuery);
+        const [reservationRows] = await conn.promise().query(reservationQuery);
+        const [reviewRows] = await conn.promise().query(reviewQuery);
+
+        // 연결 종료
+        conn.end();
 
         // 데이터를 원하는 구조로 정리
-        const result = rows.reduce((acc, row) => {
-            const existingBar = acc.find((bar) => bar.barID === row.barID);
+        const barList = barRows.map(row => {
+            const reservations = reservationRows
+                .filter(reservation => reservation.barID === row.barID)
+                .map(reservation => reservation.reservationTime);
 
-            if (!existingBar) {
-                acc.push({
-                    barID: row.barID,
-                    barName: row.barName,
-                    barAddress: row.barAddress,
-                    barType: row.barType,
-                    barLatitude: row.barLatitude,
-                    barLongitude: row.barLongitude,
-                    barTag: row.barTag,
-                    barDetail: row.barDetail,
-                    barCorkPrice: row.barCorkPrice,
-                    reviews: [{
-                        barRatings: row.barRatings,
-                        userNickname: row.userNickname,
-                        barReviewDetail: row.barReviewDetail,
-                    }],
-                    reservations: [row.reservationTime],
-                });
-            } else {
-                existingBar.reviews.push({
-                    barRatings: row.barRatings,
-                    userNickname: row.userNickname,
-                    barReviewDetail: row.barReviewDetail,
-                });
+            const reviews = reviewRows
+                .filter(review => review.barID === row.barID)
+                .map(review => ({
+                    userNickname: review.userNickname,
+                    barReviewDetail: review.barReviewDetail,
+                    barStar: review.barStar,
+                }));
 
-                existingBar.reservations.push(row.reservationTime);
-            }
+            return {
+                barID: row.barID,
+                barName: row.barName,
+                barAddress: row.barAddress,
+                barType: row.barType,
+                barLatitude: row.barLatitude,
+                barLongitude: row.barLongitude,
+                barTag: row.barTag,
+                barDetail: row.barDetail,
+                barCorkPrice: row.barCorkPrice,
+                barReservation: reservations,
+                barReview: reviews,
+            };
+        });
 
-            return acc;
-        }, []);
-
-        res.json(result);
+        // 클라이언트에 응답 보내기
+        res.json(barList);
     } catch (error) {
         console.error('에러:', error);
         res.status(500).json({ error: '내부 서버 오류' });
     }
 });
+
 
 app.get('/dog', (req, res) => {
     res.json({a: 30, b:40});

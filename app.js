@@ -138,6 +138,163 @@ app.get('/bar/coordinate', async (req, res) => {
 });
 
 
+// 주류 정보 가져오기 api
+app.get('/liquor/info', async (req, res) => {
+    try {
+        // 데이터베이스 연결 초기화
+        const conn = db.init();
+
+        // 데이터베이스 연결
+        db.connect(conn);
+
+        // liquor 테이블에서 liquorID가 1부터 10까지인 데이터 가져오기
+        const query = `
+      SELECT 
+        liquorID, liquorType, liquorName, liquorPrice, liquorDetail
+      FROM liquor
+      WHERE liquorID BETWEEN 1 AND 10
+    `;
+
+        // 쿼리 실행
+        const [rows] = await conn.promise().query(query);
+
+        // 연결 종료
+        conn.end();
+
+        // 데이터를 원하는 구조로 정리
+        const liquorList = rows.map(row => ({
+            liquorID: row.liquorID,
+            liquorType: row.liquorType,
+            liquorName: row.liquorName,
+            liquorPrice: row.liquorPrice,
+            liquorDetail: row.liquorDetail,
+        }));
+
+        // 클라이언트에 응답 보내기
+        res.json(liquorList);
+    } catch (error) {
+        console.error('에러:', error);
+        res.status(500).json({ error: '내부 서버 오류' });
+    }
+});
+
+// 주류 하나 정보 보내기 api
+app.get('/liquor/info/:liquorID', async (req, res) => {
+    try {
+        // 요청에서 liquorID 파라미터 가져오기
+        const liquorID = req.params.liquorID;
+
+        // 데이터베이스 연결 초기화
+        const conn = db.init();
+
+        // 데이터베이스 연결
+        db.connect(conn);
+
+        // liquor 테이블에서 해당 liquorID의 데이터 가져오기
+        const query = `
+      SELECT 
+        liquorID, liquorType, liquorName, liquorPrice, liquorDetail
+      FROM liquor
+      WHERE liquorID = ?
+    `;
+
+        // 쿼리 실행
+        const [rows] = await conn.promise().query(query, [liquorID]);
+
+        // 연결 종료
+        conn.end();
+
+        // 데이터를 원하는 구조로 정리
+        const liquorInfo = rows[0]; // 결과가 하나의 행이므로 첫 번째 요소만 가져옴
+
+        // 클라이언트에 응답 보내기
+        if (liquorInfo) {
+            res.json(liquorInfo);
+        } else {
+            res.status(404).json({ error: '해당 liquorID의 정보를 찾을 수 없습니다.' });
+        }
+    } catch (error) {
+        console.error('에러:', error);
+        res.status(500).json({ error: '내부 서버 오류' });
+    }
+});
+
+// 주류 즐겨찾기 조회 (주류 아이디를 응답으로 보냄)
+app.get('/liquor/bookmark/:userID', async (req, res) => {
+    try {
+        // 요청에서 userID 파라미터 가져오기
+        const userID = req.params.userID;
+
+        // 데이터베이스 연결 초기화
+        const conn = db.init();
+
+        // 데이터베이스 연결
+        db.connect(conn);
+
+        // liquor_favor 테이블에서 해당 userID의 liquorID 목록 가져오기
+        const query = `
+      SELECT 
+        liquorID
+      FROM liquor_favor
+      WHERE userID = ?
+    `;
+
+        // 쿼리 실행
+        const [rows] = await conn.promise().query(query, [userID]);
+
+        // 연결 종료
+        conn.end();
+
+        // 데이터를 원하는 구조로 정리
+        const bookmarkedLiquorIDs = rows.map(row => row.liquorID);
+
+        // 클라이언트에 응답 보내기
+        res.json(bookmarkedLiquorIDs);
+    } catch (error) {
+        console.error('에러:', error);
+        res.status(500).json({ error: '내부 서버 오류' });
+    }
+});
+
+//주류 찜하기 기능 api
+app.post('/liquor/bookmark/:liquorID', async (req, res) => {
+    try {
+        // 요청에서 liquorID 파라미터 가져오기
+        const liquorID = req.params.liquorID;
+
+        // 요청에서 userID 바디 데이터 가져오기
+        const { userID } = req.body;
+
+        // 데이터베이스 연결 초기화
+        const conn = db.init();
+
+        // 데이터베이스 연결
+        db.connect(conn);
+
+        // liquor_favor 테이블에 데이터 삽입
+        const query = `
+      INSERT INTO liquor_favor (liquorID, userID)
+      VALUES (?, ?)
+    `;
+
+        // 쿼리 실행
+        const [result] = await conn.promise().query(query, [liquorID, userID]);
+
+        // 연결 종료
+        conn.end();
+
+        // 클라이언트에 응답 보내기
+        if (result.affectedRows > 0) {
+            res.json({ message: '즐겨찾기에 추가되었습니다.' });
+        } else {
+            res.status(500).json({ error: '즐겨찾기 추가에 실패했습니다.' });
+        }
+    } catch (error) {
+        console.error('에러:', error);
+        res.status(500).json({ error: '내부 서버 오류' });
+    }
+});
+
 app.get('/dog', (req, res) => {
     res.json({a: 30, b:40});
 })

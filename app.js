@@ -291,6 +291,78 @@ app.get('/bar/bookmark/:userID', async (req, res) => {
     }
 });
 
+// 가게 리뷰하기 API
+app.post('/bar/review/:barID', async (req, res) => {
+    const { barID } = req.params;
+    const { userNickname, barStar, barReviewDetail } = req.body;
+
+    try {
+        // 데이터베이스 연결 초기화
+        const conn = db.init();
+
+        // 데이터베이스 연결
+        db.connect(conn);
+
+        // 중복 리뷰 확인하는 쿼리
+        const checkDuplicateReviewQuery = 'SELECT * FROM bar_review WHERE barID = ? AND userNickname = ?';
+
+        // 중복 리뷰 확인
+        const [duplicateReviews] = await conn.promise().query(checkDuplicateReviewQuery, [barID, userNickname]);
+
+        // 중복된 리뷰가 있으면 에러 응답
+        if (duplicateReviews.length > 0) {
+            conn.end(); // 연결 종료
+            return res.status(400).json({ error: '이미 존재하는 리뷰입니다' });
+        }
+
+        // 가게 리뷰 저장하는 쿼리
+        const insertReviewQuery = 'INSERT INTO bar_review (barID, userNickname, barStar, barReviewDetail) VALUES (?, ?, ?, ?)';
+
+        // 쿼리 실행
+        await conn.promise().query(insertReviewQuery, [barID, userNickname, barStar, barReviewDetail]);
+
+        conn.end(); // 연결 종료
+
+        // 성공 응답
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Error:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+// 리뷰한 가게 불러오기 API
+app.get('/bar/review/:userNickname', async (req, res) => {
+    const { userNickname } = req.params;
+
+    try {
+        // 데이터베이스 연결 초기화
+        const conn = db.init();
+
+        // 데이터베이스 연결
+        db.connect(conn);
+
+        // 리뷰한 가게 조회하는 쿼리
+        const getReviewedBarsQuery = `
+      SELECT br.barReviewID, br.barID, br.userNickname, br.barStar, br.barReviewDetail, b.barName
+      FROM bar_review br
+      INNER JOIN bar b ON br.barID = b.barID
+      WHERE br.userNickname = ?
+    `;
+
+        // 쿼리 실행
+        const [reviewedBars] = await conn.promise().query(getReviewedBarsQuery, [userNickname]);
+
+        conn.end(); // 연결 종료
+
+        // 클라이언트에 리뷰한 가게 목록 응답 보내기
+        res.json({ reviewedBars });
+    } catch (error) {
+        console.error('Error:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
 // 주류 정보 가져오기 api
 app.get('/liquor/info', async (req, res) => {
     try {

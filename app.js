@@ -137,6 +137,74 @@ app.get('/bar/coordinate', async (req, res) => {
     }
 });
 
+//가게 이름 검색 api
+app.get('/bar/search/:barname', async (req, res) => {
+    try {
+        // 요청에서 barname 파라미터 가져오기
+        const barname = req.params.barname;
+
+        // 데이터베이스 연결 초기화
+        const conn = db.init();
+
+        // 데이터베이스 연결
+        db.connect(conn);
+
+        // bar 테이블에서 해당 barname을 포함하는 가게들의 정보 가져오기
+        const query = `
+      SELECT 
+        barID,
+        barName,
+        barAddress,
+        barType,
+        barLatitude,
+        barLongitude,
+        barDetail
+      FROM bar
+      WHERE barName LIKE ?
+    `;
+
+        // 쿼리 실행
+        const [rows] = await conn.promise().query(query, [`%${barname}%`]);
+
+        // 연결 종료
+        conn.end();
+
+        // 클라이언트에 응답 보내기
+        if (rows.length > 0) {
+            // 검색된 이름이 여러개라면 배열에 담아서 전송
+            if (rows.length > 1) {
+                const barsInfo = rows.map((row) => ({
+                    barID: row.barID,
+                    barName: row.barName,
+                    barAddress: row.barAddress,
+                    barType: row.barType,
+                    barLatitude: row.barLatitude,
+                    barLongitude: row.barLongitude,
+                    barDetail: row.barDetail
+                }));
+                res.json(barsInfo);
+            } else {
+                // 검색된 이름이 하나라면 객체로 전송
+                const barInfo = {
+                    barID: rows[0].barID,
+                    barName: rows[0].barName,
+                    barAddress: rows[0].barAddress,
+                    barType: rows[0].barType,
+                    barLatitude: rows[0].barLatitude,
+                    barLongitude: rows[0].barLongitude,
+                    barDetail: rows[0].barDetail
+                };
+                res.json(barInfo);
+            }
+        } else {
+            res.status(404).json({ error: '가게 정보를 찾을 수 없습니다.' });
+        }
+    } catch (error) {
+        console.error('에러:', error);
+        res.status(500).json({ error: '내부 서버 오류' });
+    }
+});
+
 
 // 주류 정보 가져오기 api
 app.get('/liquor/info', async (req, res) => {
@@ -256,7 +324,69 @@ app.get('/liquor/bookmark/:userID', async (req, res) => {
     }
 });
 
-//주류 찜하기 기능 api
+//주류 이름 검색 api
+app.get('/liquor/search/:liquorname', async (req, res) => {
+    try {
+        // 요청에서 liquorname 파라미터 가져오기
+        const liquorname = req.params.liquorname;
+
+        // 데이터베이스 연결 초기화
+        const conn = db.init();
+
+        // 데이터베이스 연결
+        db.connect(conn);
+
+        // liquor 테이블에서 해당 liquorname을 포함하는 주류들의 정보 가져오기
+        const query = `
+      SELECT 
+        liquorID,
+        liquorName,
+        liquorType,
+        liquorPrice,
+        liquorDetail
+      FROM liquor
+      WHERE liquorName LIKE ?
+    `;
+
+        // 쿼리 실행
+        const [rows] = await conn.promise().query(query, [`%${liquorname}%`]);
+
+        // 연결 종료
+        conn.end();
+
+        // 클라이언트에 응답 보내기
+        if (rows.length > 0) {
+            // 검색된 이름이 여러개라면 배열에 담아서 전송
+            if (rows.length > 1) {
+                const liquorsInfo = rows.map((row) => ({
+                    liquorID: row.liquorID,
+                    liquorName: row.liquorName,
+                    liquorType: row.liquorType,
+                    liquorPrice: row.liquorPrice,
+                    liquorDetail: row.liquorDetail
+                }));
+                res.json(liquorsInfo);
+            } else {
+                // 검색된 이름이 하나라면 객체로 전송
+                const liquorInfo = {
+                    liquorID: rows[0].liquorID,
+                    liquorName: rows[0].liquorName,
+                    liquorType: rows[0].liquorType,
+                    liquorPrice: rows[0].liquorPrice,
+                    liquorDetail: rows[0].liquorDetail
+                };
+                res.json(liquorInfo);
+            }
+        } else {
+            res.status(404).json({ error: '주류 정보를 찾을 수 없습니다.' });
+        }
+    } catch (error) {
+        console.error('에러:', error);
+        res.status(500).json({ error: '내부 서버 오류' });
+    }
+});
+
+    //주류 찜하기 기능 api
 app.post('/liquor/bookmark/:liquorID', async (req, res) => {
     try {
         // 요청에서 liquorID 파라미터 가져오기
@@ -271,24 +401,52 @@ app.post('/liquor/bookmark/:liquorID', async (req, res) => {
         // 데이터베이스 연결
         db.connect(conn);
 
-        // liquor_favor 테이블에 데이터 삽입
-        const query = `
-      INSERT INTO liquor_favor (liquorID, userID)
-      VALUES (?, ?)
+        // liquor_favor 테이블에서 해당 userID와 liquorID가 있는지 확인
+        const checkQuery = `
+      SELECT *
+      FROM liquor_favor
+      WHERE userID = ? AND liquorID = ?
     `;
 
         // 쿼리 실행
-        const [result] = await conn.promise().query(query, [liquorID, userID]);
+        const [checkResult] = await conn.promise().query(checkQuery, [userID, liquorID]);
+
+        if (checkResult.length > 0) {
+            // 이미 존재한다면 해당 레코드 삭제
+            const deleteQuery = `
+        DELETE FROM liquor_favor
+        WHERE userID = ? AND liquorID = ?
+      `;
+
+            // 쿼리 실행
+            const [deleteResult] = await conn.promise().query(deleteQuery, [userID, liquorID]);
+
+            // 클라이언트에 응답 보내기
+            if (deleteResult.affectedRows > 0) {
+                res.json({ message: '즐겨찾기가 삭제되었습니다.' });
+            } else {
+                res.status(500).json({ error: '즐겨찾기 삭제에 실패했습니다.' });
+            }
+        } else {
+            // 존재하지 않으면 추가
+            const insertQuery = `
+        INSERT INTO liquor_favor (liquorID, userID)
+        VALUES (?, ?)
+      `;
+
+            // 쿼리 실행
+            const [insertResult] = await conn.promise().query(insertQuery, [liquorID, userID]);
+
+            // 클라이언트에 응답 보내기
+            if (insertResult.affectedRows > 0) {
+                res.json({ message: '즐겨찾기에 추가되었습니다.' });
+            } else {
+                res.status(500).json({ error: '즐겨찾기 추가에 실패했습니다.' });
+            }
+        }
 
         // 연결 종료
         conn.end();
-
-        // 클라이언트에 응답 보내기
-        if (result.affectedRows > 0) {
-            res.json({ message: '즐겨찾기에 추가되었습니다.' });
-        } else {
-            res.status(500).json({ error: '즐겨찾기 추가에 실패했습니다.' });
-        }
     } catch (error) {
         console.error('에러:', error);
         res.status(500).json({ error: '내부 서버 오류' });

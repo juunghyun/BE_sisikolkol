@@ -172,7 +172,7 @@ app.get('/bar/search/:barname', async (req, res) => {
         // 클라이언트에 응답 보내기
         if (rows.length > 0) {
             // 검색된 이름이 여러개라면 배열에 담아서 전송
-            if (rows.length > 1) {
+            if (rows.length > 0) {
                 const barsInfo = rows.map((row) => ({
                     barID: row.barID,
                     barName: row.barName,
@@ -205,6 +205,91 @@ app.get('/bar/search/:barname', async (req, res) => {
     }
 });
 
+//가게 찜하기 api
+app.post('/bar/bookmark/:barID', async (req, res) => {
+    try {
+        // 요청에서 barID와 userID 파라미터 가져오기
+        const barID = req.params.barID;
+        const userID = req.body.userID;
+
+        // 데이터베이스 연결 초기화
+        const conn = db.init();
+
+        // 데이터베이스 연결
+        db.connect(conn);
+
+        // 해당 barID와 userID가 이미 찜한 목록에 있는지 확인하는 쿼리
+        const checkFavorQuery = `
+      SELECT COUNT(*) as count
+      FROM bar_favor
+      WHERE barID = ? AND userID = ?
+    `;
+
+        // 찜하기 추가 또는 삭제 쿼리
+        let favorQuery = '';
+        if ((await conn.promise().query(checkFavorQuery, [barID, userID]))[0][0].count > 0) {
+            // 이미 찜한 목록에 있는 경우, 삭제 쿼리
+            favorQuery = `
+        DELETE FROM bar_favor
+        WHERE barID = ? AND userID = ?
+      `;
+        } else {
+            // 찜한 목록에 없는 경우, 추가 쿼리
+            favorQuery = `
+        INSERT INTO bar_favor (barID, userID)
+        VALUES (?, ?)
+      `;
+        }
+
+        // 쿼리 실행
+        await conn.promise().query(favorQuery, [barID, userID]);
+
+        // 연결 종료
+        conn.end();
+
+        // 클라이언트에 응답 보내기
+        res.json({ message: '찜하기가 성공적으로 처리되었습니다.' });
+    } catch (error) {
+        console.error('에러:', error);
+        res.status(500).json({ error: '내부 서버 오류' });
+    }
+});
+
+//찜한 가게 목록 불러오기 api (배열로 barID 반환)
+app.get('/bar/bookmark/:userID', async (req, res) => {
+    try {
+        // 요청에서 userID 파라미터 가져오기
+        const userID = req.params.userID;
+
+        // 데이터베이스 연결 초기화
+        const conn = db.init();
+
+        // 데이터베이스 연결
+        db.connect(conn);
+
+        // 해당 userID의 찜한 목록을 불러오는 쿼리
+        const getBookmarkQuery = `
+      SELECT barID
+      FROM bar_favor
+      WHERE userID = ?
+    `;
+
+        // 쿼리 실행
+        const bookmarkResult = await conn.promise().query(getBookmarkQuery, [userID]);
+
+        // 찜한 목록을 담을 배열
+        const bookmarkList = bookmarkResult[0].map((row) => row.barID);
+
+        // 연결 종료
+        conn.end();
+
+        // 클라이언트에 찜한 목록 응답 보내기
+        res.json({ bookmarkList });
+    } catch (error) {
+        console.error('에러:', error);
+        res.status(500).json({ error: '내부 서버 오류' });
+    }
+});
 
 // 주류 정보 가져오기 api
 app.get('/liquor/info', async (req, res) => {
@@ -220,6 +305,7 @@ app.get('/liquor/info', async (req, res) => {
       SELECT 
         liquorID, liquorType, liquorName, liquorPrice, liquorDetail
       FROM liquor
+      //여기 부분을 원하는 만큼으로 설정하세요 범위설정
       WHERE liquorID BETWEEN 1 AND 10
     `;
 
@@ -426,7 +512,7 @@ app.get('/liquor/search/:liquorname', async (req, res) => {
     }
 });
 
-    //주류 찜하기 기능 api
+//주류 찜하기 기능 api
 app.post('/liquor/bookmark/:liquorID', async (req, res) => {
     try {
         // 요청에서 liquorID 파라미터 가져오기

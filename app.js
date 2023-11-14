@@ -137,6 +137,59 @@ app.get('/bar/coordinate', async (req, res) => {
     }
 });
 
+//특정 가게 정보 보내기 api
+app.get('/bar/coordinate/:barID', async (req, res) => {
+    try {
+        // 요청에서 barID 파라미터 가져오기
+        const barID = req.params.barID;
+
+        // 데이터베이스 연결 초기화
+        const conn = db.init();
+
+        // 데이터베이스 연결
+        db.connect(conn);
+
+        // bar 테이블에서 해당 barID의 가게 정보 가져오기
+        const query = `
+      SELECT 
+        barID,
+        barName,
+        barAddress,
+        barType,
+        barLatitude,
+        barLongitude,
+        barDetail
+      FROM bar
+      WHERE barID = ?
+    `;
+
+        // 쿼리 실행
+        const [rows] = await conn.promise().query(query, [barID]);
+
+        // 연결 종료
+        conn.end();
+
+        // 클라이언트에 응답 보내기(객체로)
+        if (rows.length > 0) {
+            const barInfo = {
+                barID: rows[0].barID,
+                barName: rows[0].barName,
+                barAddress: rows[0].barAddress,
+                barType: rows[0].barType,
+                barLatitude: rows[0].barLatitude,
+                barLongitude: rows[0].barLongitude,
+                barDetail: rows[0].barDetail
+            };
+            res.json(barInfo);
+        } else {
+            res.status(404).json({ error: '가게 정보를 찾을 수 없습니다.' });
+        }
+    } catch (error) {
+        console.error('에러:', error);
+        res.status(500).json({ error: '내부 서버 오류' });
+    }
+});
+
 
 // 주류 정보 가져오기 api
 app.get('/liquor/info', async (req, res) => {

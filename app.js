@@ -271,24 +271,52 @@ app.post('/liquor/bookmark/:liquorID', async (req, res) => {
         // 데이터베이스 연결
         db.connect(conn);
 
-        // liquor_favor 테이블에 데이터 삽입
-        const query = `
-      INSERT INTO liquor_favor (liquorID, userID)
-      VALUES (?, ?)
+        // liquor_favor 테이블에서 해당 userID와 liquorID가 있는지 확인
+        const checkQuery = `
+      SELECT *
+      FROM liquor_favor
+      WHERE userID = ? AND liquorID = ?
     `;
 
         // 쿼리 실행
-        const [result] = await conn.promise().query(query, [liquorID, userID]);
+        const [checkResult] = await conn.promise().query(checkQuery, [userID, liquorID]);
+
+        if (checkResult.length > 0) {
+            // 이미 존재한다면 해당 레코드 삭제
+            const deleteQuery = `
+        DELETE FROM liquor_favor
+        WHERE userID = ? AND liquorID = ?
+      `;
+
+            // 쿼리 실행
+            const [deleteResult] = await conn.promise().query(deleteQuery, [userID, liquorID]);
+
+            // 클라이언트에 응답 보내기
+            if (deleteResult.affectedRows > 0) {
+                res.json({ message: '즐겨찾기가 삭제되었습니다.' });
+            } else {
+                res.status(500).json({ error: '즐겨찾기 삭제에 실패했습니다.' });
+            }
+        } else {
+            // 존재하지 않으면 추가
+            const insertQuery = `
+        INSERT INTO liquor_favor (liquorID, userID)
+        VALUES (?, ?)
+      `;
+
+            // 쿼리 실행
+            const [insertResult] = await conn.promise().query(insertQuery, [liquorID, userID]);
+
+            // 클라이언트에 응답 보내기
+            if (insertResult.affectedRows > 0) {
+                res.json({ message: '즐겨찾기에 추가되었습니다.' });
+            } else {
+                res.status(500).json({ error: '즐겨찾기 추가에 실패했습니다.' });
+            }
+        }
 
         // 연결 종료
         conn.end();
-
-        // 클라이언트에 응답 보내기
-        if (result.affectedRows > 0) {
-            res.json({ message: '즐겨찾기에 추가되었습니다.' });
-        } else {
-            res.status(500).json({ error: '즐겨찾기 추가에 실패했습니다.' });
-        }
     } catch (error) {
         console.error('에러:', error);
         res.status(500).json({ error: '내부 서버 오류' });

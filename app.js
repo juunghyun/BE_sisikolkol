@@ -579,6 +579,70 @@ app.post('/liquor/bookmark/:liquorID', async (req, res) => {
     }
 });
 
+//주류 리뷰하기 api
+app.post('/liquor/review/:liquorID', async (req, res) => {
+    const { liquorID } = req.params;
+    const { userNickname, liquorStar, liquorReviewDetail } = req.body;
+
+    try {
+        // 데이터베이스 연결 초기화
+        const conn = db.init();
+
+        // 데이터베이스 연결
+        db.connect(conn);
+
+        // 이미 리뷰가 존재하는지 확인
+        const [existingReview] = await conn.promise().query(
+            'SELECT * FROM liquor_review WHERE userNickname = ? AND liquorID = ?',
+            [userNickname, liquorID]
+        );
+
+        if (existingReview.length > 0) {
+            conn.end(); // 연결 종료
+            return res.status(400).json({ error: '이미 리뷰한 주류입니다' });
+        }
+
+        // 리뷰 추가(닉네임, 주류ID, 주류별점, 리뷰내용)
+        await conn.promise().query(
+            'INSERT INTO liquor_review (userNickname, liquorID, liquorStar, liquorReviewDetail) VALUES (?, ?, ?, ?)',
+            [userNickname, liquorID, liquorStar, liquorReviewDetail]
+        );
+
+        conn.end(); // 연결 종료
+        res.json({ message: '주류 리뷰가 성공적으로 추가되었습니다' });
+    } catch (error) {
+        console.error('Error:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+//리뷰한 주류 불러오기 api
+app.get('/liquor/review/:userNickname', async (req, res) => {
+    const { userNickname } = req.params;
+
+    try {
+        // 데이터베이스 연결 초기화
+        const conn = db.init();
+
+        // 데이터베이스 연결
+        db.connect(conn);
+
+        // 주류 리뷰 내역 불러오는 쿼리
+        const [reviews] = await conn.promise().query(
+            'SELECT l.liquorReviewID, l.userNickname, l.liquorID, l.liquorStar, l.liquorReviewDetail, li.liquorName FROM liquor_review l JOIN liquor li ON l.liquorID = li.liquorID WHERE l.userNickname = ?',
+            [userNickname]
+        );
+
+        conn.end(); // 연결 종료
+
+        // 리뷰 내역 응답
+        res.json({ reviews });
+    } catch (error) {
+        console.error('Error:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
 app.get('/dog', (req, res) => {
     res.json({a: 30, b:40});
 })

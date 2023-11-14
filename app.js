@@ -137,11 +137,11 @@ app.get('/bar/coordinate', async (req, res) => {
     }
 });
 
-//특정 가게 정보 보내기 api
-app.get('/bar/coordinate/:barID', async (req, res) => {
+//가게 이름 검색 api
+app.get('/bar/search/:barname', async (req, res) => {
     try {
-        // 요청에서 barID 파라미터 가져오기
-        const barID = req.params.barID;
+        // 요청에서 barname 파라미터 가져오기
+        const barname = req.params.barname;
 
         // 데이터베이스 연결 초기화
         const conn = db.init();
@@ -149,7 +149,7 @@ app.get('/bar/coordinate/:barID', async (req, res) => {
         // 데이터베이스 연결
         db.connect(conn);
 
-        // bar 테이블에서 해당 barID의 가게 정보 가져오기
+        // bar 테이블에서 해당 barname을 포함하는 가게들의 정보 가져오기
         const query = `
       SELECT 
         barID,
@@ -160,27 +160,42 @@ app.get('/bar/coordinate/:barID', async (req, res) => {
         barLongitude,
         barDetail
       FROM bar
-      WHERE barID = ?
+      WHERE barName LIKE ?
     `;
 
         // 쿼리 실행
-        const [rows] = await conn.promise().query(query, [barID]);
+        const [rows] = await conn.promise().query(query, [`%${barname}%`]);
 
         // 연결 종료
         conn.end();
 
-        // 클라이언트에 응답 보내기(객체로)
+        // 클라이언트에 응답 보내기
         if (rows.length > 0) {
-            const barInfo = {
-                barID: rows[0].barID,
-                barName: rows[0].barName,
-                barAddress: rows[0].barAddress,
-                barType: rows[0].barType,
-                barLatitude: rows[0].barLatitude,
-                barLongitude: rows[0].barLongitude,
-                barDetail: rows[0].barDetail
-            };
-            res.json(barInfo);
+            // 검색된 이름이 여러개라면 배열에 담아서 전송
+            if (rows.length > 1) {
+                const barsInfo = rows.map((row) => ({
+                    barID: row.barID,
+                    barName: row.barName,
+                    barAddress: row.barAddress,
+                    barType: row.barType,
+                    barLatitude: row.barLatitude,
+                    barLongitude: row.barLongitude,
+                    barDetail: row.barDetail
+                }));
+                res.json(barsInfo);
+            } else {
+                // 검색된 이름이 하나라면 객체로 전송
+                const barInfo = {
+                    barID: rows[0].barID,
+                    barName: rows[0].barName,
+                    barAddress: rows[0].barAddress,
+                    barType: rows[0].barType,
+                    barLatitude: rows[0].barLatitude,
+                    barLongitude: rows[0].barLongitude,
+                    barDetail: rows[0].barDetail
+                };
+                res.json(barInfo);
+            }
         } else {
             res.status(404).json({ error: '가게 정보를 찾을 수 없습니다.' });
         }

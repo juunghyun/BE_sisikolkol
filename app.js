@@ -172,7 +172,7 @@ app.get('/bar/search/:barname', async (req, res) => {
         // 클라이언트에 응답 보내기
         if (rows.length > 0) {
             // 검색된 이름이 여러개라면 배열에 담아서 전송
-            if (rows.length > 1) {
+            if (rows.length > 0) {
                 const barsInfo = rows.map((row) => ({
                     barID: row.barID,
                     barName: row.barName,
@@ -205,6 +205,163 @@ app.get('/bar/search/:barname', async (req, res) => {
     }
 });
 
+//가게 찜하기 api
+app.post('/bar/bookmark/:barID', async (req, res) => {
+    try {
+        // 요청에서 barID와 userID 파라미터 가져오기
+        const barID = req.params.barID;
+        const userID = req.body.userID;
+
+        // 데이터베이스 연결 초기화
+        const conn = db.init();
+
+        // 데이터베이스 연결
+        db.connect(conn);
+
+        // 해당 barID와 userID가 이미 찜한 목록에 있는지 확인하는 쿼리
+        const checkFavorQuery = `
+      SELECT COUNT(*) as count
+      FROM bar_favor
+      WHERE barID = ? AND userID = ?
+    `;
+
+        // 찜하기 추가 또는 삭제 쿼리
+        let favorQuery = '';
+        if ((await conn.promise().query(checkFavorQuery, [barID, userID]))[0][0].count > 0) {
+            // 이미 찜한 목록에 있는 경우, 삭제 쿼리
+            favorQuery = `
+        DELETE FROM bar_favor
+        WHERE barID = ? AND userID = ?
+      `;
+        } else {
+            // 찜한 목록에 없는 경우, 추가 쿼리
+            favorQuery = `
+        INSERT INTO bar_favor (barID, userID)
+        VALUES (?, ?)
+      `;
+        }
+
+        // 쿼리 실행
+        await conn.promise().query(favorQuery, [barID, userID]);
+
+        // 연결 종료
+        conn.end();
+
+        // 클라이언트에 응답 보내기
+        res.json({ message: '찜하기가 성공적으로 처리되었습니다.' });
+    } catch (error) {
+        console.error('에러:', error);
+        res.status(500).json({ error: '내부 서버 오류' });
+    }
+});
+
+//찜한 가게 목록 불러오기 api (배열로 barID 반환)
+app.get('/bar/bookmark/:userID', async (req, res) => {
+    try {
+        // 요청에서 userID 파라미터 가져오기
+        const userID = req.params.userID;
+
+        // 데이터베이스 연결 초기화
+        const conn = db.init();
+
+        // 데이터베이스 연결
+        db.connect(conn);
+
+        // 해당 userID의 찜한 목록을 불러오는 쿼리
+        const getBookmarkQuery = `
+      SELECT barID
+      FROM bar_favor
+      WHERE userID = ?
+    `;
+
+        // 쿼리 실행
+        const bookmarkResult = await conn.promise().query(getBookmarkQuery, [userID]);
+
+        // 찜한 목록을 담을 배열
+        const bookmarkList = bookmarkResult[0].map((row) => row.barID);
+
+        // 연결 종료
+        conn.end();
+
+        // 클라이언트에 찜한 목록 응답 보내기
+        res.json({ bookmarkList });
+    } catch (error) {
+        console.error('에러:', error);
+        res.status(500).json({ error: '내부 서버 오류' });
+    }
+});
+
+// 가게 리뷰하기 API
+app.post('/bar/review/:barID', async (req, res) => {
+    const { barID } = req.params;
+    const { userNickname, barStar, barReviewDetail } = req.body;
+
+    try {
+        // 데이터베이스 연결 초기화
+        const conn = db.init();
+
+        // 데이터베이스 연결
+        db.connect(conn);
+
+        // 중복 리뷰 확인하는 쿼리
+        const checkDuplicateReviewQuery = 'SELECT * FROM bar_review WHERE barID = ? AND userNickname = ?';
+
+        // 중복 리뷰 확인
+        const [duplicateReviews] = await conn.promise().query(checkDuplicateReviewQuery, [barID, userNickname]);
+
+        // 중복된 리뷰가 있으면 에러 응답
+        if (duplicateReviews.length > 0) {
+            conn.end(); // 연결 종료
+            return res.status(400).json({ error: '이미 존재하는 리뷰입니다' });
+        }
+
+        // 가게 리뷰 저장하는 쿼리
+        const insertReviewQuery = 'INSERT INTO bar_review (barID, userNickname, barStar, barReviewDetail) VALUES (?, ?, ?, ?)';
+
+        // 쿼리 실행
+        await conn.promise().query(insertReviewQuery, [barID, userNickname, barStar, barReviewDetail]);
+
+        conn.end(); // 연결 종료
+
+        // 성공 응답
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Error:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+// 리뷰한 가게 불러오기 API
+app.get('/bar/review/:userNickname', async (req, res) => {
+    const { userNickname } = req.params;
+
+    try {
+        // 데이터베이스 연결 초기화
+        const conn = db.init();
+
+        // 데이터베이스 연결
+        db.connect(conn);
+
+        // 리뷰한 가게 조회하는 쿼리
+        const getReviewedBarsQuery = `
+      SELECT br.barReviewID, br.barID, br.userNickname, br.barStar, br.barReviewDetail, b.barName
+      FROM bar_review br
+      INNER JOIN bar b ON br.barID = b.barID
+      WHERE br.userNickname = ?
+    `;
+
+        // 쿼리 실행
+        const [reviewedBars] = await conn.promise().query(getReviewedBarsQuery, [userNickname]);
+
+        conn.end(); // 연결 종료
+
+        // 클라이언트에 리뷰한 가게 목록 응답 보내기
+        res.json({ reviewedBars });
+    } catch (error) {
+        console.error('Error:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
 
 // 주류 정보 가져오기 api
 app.get('/liquor/info', async (req, res) => {
@@ -220,6 +377,7 @@ app.get('/liquor/info', async (req, res) => {
       SELECT 
         liquorID, liquorType, liquorName, liquorPrice, liquorDetail
       FROM liquor
+      //여기 부분을 원하는 만큼으로 설정하세요 범위설정
       WHERE liquorID BETWEEN 1 AND 10
     `;
 
@@ -246,11 +404,11 @@ app.get('/liquor/info', async (req, res) => {
     }
 });
 
-// 주류 하나 정보 보내기 api
-app.get('/liquor/info/:liquorID', async (req, res) => {
+// 주류 검색 api, 리뷰도 보내도록 설정.
+app.get('/liquor/search/:liquorname', async (req, res) => {
     try {
-        // 요청에서 liquorID 파라미터 가져오기
-        const liquorID = req.params.liquorID;
+        // 요청에서 liquorname 파라미터 가져오기
+        const liquorname = req.params.liquorname;
 
         // 데이터베이스 연결 초기화
         const conn = db.init();
@@ -258,29 +416,69 @@ app.get('/liquor/info/:liquorID', async (req, res) => {
         // 데이터베이스 연결
         db.connect(conn);
 
-        // liquor 테이블에서 해당 liquorID의 데이터 가져오기
-        const query = `
+        // liquor 테이블에서 해당 liquorname을 포함하는 주류들의 정보 가져오기
+        const liquorQuery = `
       SELECT 
-        liquorID, liquorType, liquorName, liquorPrice, liquorDetail
+        liquorID,
+        liquorName,
+        liquorType,
+        liquorPrice,
+        liquorDetail
       FROM liquor
+      WHERE liquorName LIKE ?
+    `;
+
+        // liquor_review 테이블에서 해당 liquorID의 리뷰 정보 가져오기
+        const reviewQuery = `
+      SELECT 
+        liquorReviewID,
+        userNickname,
+        liquorID,
+        liquorStar,
+        liquorReviewDetail
+      FROM liquor_review
       WHERE liquorID = ?
     `;
 
         // 쿼리 실행
-        const [rows] = await conn.promise().query(query, [liquorID]);
+        const [liquorRows] = await conn.promise().query(liquorQuery, [`%${liquorname}%`]);
+
+        // 결과가 없을 경우 404 에러 응답
+        if (liquorRows.length === 0) {
+            res.status(404).json({ error: '주류 정보를 찾을 수 없습니다.' });
+            return;
+        }
+
+        // 주류 정보를 저장할 배열
+        const liquorsInfo = [];
+
+        // 주류별로 리뷰 정보를 가져와서 주류 정보에 추가
+        for (const liquorRow of liquorRows) {
+            const [reviewRows] = await conn.promise().query(reviewQuery, [liquorRow.liquorID]);
+
+            // 주류 정보 객체
+            const liquorInfo = {
+                liquorID: liquorRow.liquorID,
+                liquorName: liquorRow.liquorName,
+                liquorType: liquorRow.liquorType,
+                liquorPrice: liquorRow.liquorPrice,
+                liquorDetail: liquorRow.liquorDetail,
+                liquorReview: reviewRows.map((reviewRow) => ({
+                    liquorReviewID: reviewRow.liquorReviewID,
+                    userNickname: reviewRow.userNickname,
+                    liquorStar: reviewRow.liquorStar,
+                    liquorReviewDetail: reviewRow.liquorReviewDetail
+                }))
+            };
+
+            liquorsInfo.push(liquorInfo);
+        }
 
         // 연결 종료
         conn.end();
 
-        // 데이터를 원하는 구조로 정리
-        const liquorInfo = rows[0]; // 결과가 하나의 행이므로 첫 번째 요소만 가져옴
-
         // 클라이언트에 응답 보내기
-        if (liquorInfo) {
-            res.json(liquorInfo);
-        } else {
-            res.status(404).json({ error: '해당 liquorID의 정보를 찾을 수 없습니다.' });
-        }
+        res.json(liquorsInfo);
     } catch (error) {
         console.error('에러:', error);
         res.status(500).json({ error: '내부 서버 오류' });
@@ -386,7 +584,7 @@ app.get('/liquor/search/:liquorname', async (req, res) => {
     }
 });
 
-    //주류 찜하기 기능 api
+//주류 찜하기 기능 api
 app.post('/liquor/bookmark/:liquorID', async (req, res) => {
     try {
         // 요청에서 liquorID 파라미터 가져오기
@@ -450,6 +648,70 @@ app.post('/liquor/bookmark/:liquorID', async (req, res) => {
     } catch (error) {
         console.error('에러:', error);
         res.status(500).json({ error: '내부 서버 오류' });
+    }
+});
+
+//주류 리뷰하기 api
+app.post('/liquor/review/:liquorID', async (req, res) => {
+    const { liquorID } = req.params;
+    const { userNickname, liquorStar, liquorReviewDetail } = req.body;
+
+    try {
+        // 데이터베이스 연결 초기화
+        const conn = db.init();
+
+        // 데이터베이스 연결
+        db.connect(conn);
+
+        // 이미 리뷰가 존재하는지 확인
+        const [existingReview] = await conn.promise().query(
+            'SELECT * FROM liquor_review WHERE userNickname = ? AND liquorID = ?',
+            [userNickname, liquorID]
+        );
+
+        if (existingReview.length > 0) {
+            conn.end(); // 연결 종료
+            return res.status(400).json({ error: '이미 리뷰한 주류입니다' });
+        }
+
+        // 리뷰 추가(닉네임, 주류ID, 주류별점, 리뷰내용)
+        await conn.promise().query(
+            'INSERT INTO liquor_review (userNickname, liquorID, liquorStar, liquorReviewDetail) VALUES (?, ?, ?, ?)',
+            [userNickname, liquorID, liquorStar, liquorReviewDetail]
+        );
+
+        conn.end(); // 연결 종료
+        res.json({ message: '주류 리뷰가 성공적으로 추가되었습니다' });
+    } catch (error) {
+        console.error('Error:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+//리뷰한 주류 불러오기 api
+app.get('/liquor/review/:userNickname', async (req, res) => {
+    const { userNickname } = req.params;
+
+    try {
+        // 데이터베이스 연결 초기화
+        const conn = db.init();
+
+        // 데이터베이스 연결
+        db.connect(conn);
+
+        // 주류 리뷰 내역 불러오는 쿼리
+        const [reviews] = await conn.promise().query(
+            'SELECT l.liquorReviewID, l.userNickname, l.liquorID, l.liquorStar, l.liquorReviewDetail, li.liquorName FROM liquor_review l JOIN liquor li ON l.liquorID = li.liquorID WHERE l.userNickname = ?',
+            [userNickname]
+        );
+
+        conn.end(); // 연결 종료
+
+        // 리뷰 내역 응답
+        res.json({ reviews });
+    } catch (error) {
+        console.error('Error:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
     }
 });
 

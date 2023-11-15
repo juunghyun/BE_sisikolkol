@@ -1023,6 +1023,126 @@ app.get('/bar/reservation/:userID', async (req, res) => {
         res.status(500).json({ error: '내부 서버 오류' });
     }
 });
+
+//로그인 아이디 중복체크 api
+app.get('/signup/loginID/:loginID', async (req, res) => {
+    try {
+        // 요청에서 loginID 파라미터 가져오기
+        const loginID = req.params.loginID;
+
+        // 데이터베이스 연결 초기화
+        const conn = db.init();
+
+        // 데이터베이스 연결
+        db.connect(conn);
+
+        // 중복 아이디 확인 쿼리
+        const checkDuplicateIDQuery = 'SELECT * FROM user WHERE loginID = ?';
+
+        // 쿼리 실행
+        const [userRows] = await conn.promise().query(checkDuplicateIDQuery, [loginID]);
+
+        // 연결 종료
+        conn.end();
+
+        // 클라이언트에 응답 보내기
+        if (userRows.length > 0) {
+            res.status(400).json({ error: '이미 존재하는 아이디입니다.' });
+        } else {
+            res.json({ message: '사용 가능한 아이디입니다.' });
+        }
+    } catch (error) {
+        console.error('에러:', error);
+        res.status(500).json({ error: '내부 서버 오류' });
+    }
+});
+
+//닉네임 중복체크 api
+app.get('/signup/userNickname/:userNickname', async (req, res) => {
+    try {
+        // 요청에서 userNickname 파라미터 가져오기
+        const userNickname = req.params.userNickname;
+
+        // 데이터베이스 연결 초기화
+        const conn = db.init();
+
+        // 데이터베이스 연결
+        db.connect(conn);
+
+        // 중복 닉네임 확인 쿼리
+        const checkDuplicateNicknameQuery = 'SELECT * FROM user WHERE userNickname = ?';
+
+        // 쿼리 실행
+        const [userRows] = await conn.promise().query(checkDuplicateNicknameQuery, [userNickname]);
+
+        // 연결 종료
+        conn.end();
+
+        // 클라이언트에 응답 보내기
+        if (userRows.length > 0) {
+            res.status(400).json({ error: '이미 존재하는 닉네임입니다.' });
+        } else {
+            res.json({ message: '사용 가능한 닉네임입니다.' });
+        }
+    } catch (error) {
+        console.error('에러:', error);
+        res.status(500).json({ error: '내부 서버 오류' });
+    }
+});
+
+//회원가입 api -> 여기서 중복체크도 해줌
+app.post('/signup', async (req, res) => {
+    try {
+        // 요청에서 필요한 정보 가져오기
+        const { loginID, loginPW, userNickname, userName, userEmail, deviceID } = req.body;
+
+        // 데이터베이스 연결 초기화
+        const conn = db.init();
+
+        // 데이터베이스 연결
+        db.connect(conn);
+
+        // 중복 아이디 확인 쿼리
+        const checkDuplicateIDQuery = 'SELECT * FROM user WHERE loginID = ?';
+
+        // 쿼리 실행
+        const [userRows] = await conn.promise().query(checkDuplicateIDQuery, [loginID]);
+
+        // 중복 아이디가 있으면 에러 응답
+        if (userRows.length > 0) {
+            conn.end(); // 연결 종료
+            return res.status(400).json({ error: '이미 존재하는 아이디입니다.' });
+        }
+
+        // 중복 닉네임 확인 쿼리
+        const checkDuplicateNicknameQuery = 'SELECT * FROM user WHERE userNickname = ?';
+
+        // 쿼리 실행
+        const [nicknameRows] = await conn.promise().query(checkDuplicateNicknameQuery, [userNickname]);
+
+        // 중복 닉네임이 있으면 에러 응답
+        if (nicknameRows.length > 0) {
+            conn.end(); // 연결 종료
+            return res.status(400).json({ error: '이미 존재하는 닉네임입니다.' });
+        }
+
+        // 사용자 등록 쿼리
+        const insertUserQuery = 'INSERT INTO user (loginID, loginPW, userNickname, userName, userEmail, deviceID) VALUES (?, ?, ?, ?, ?, ?)';
+
+        // 쿼리 실행
+        await conn.promise().query(insertUserQuery, [loginID, loginPW, userNickname, userName, userEmail, deviceID]);
+
+        // 연결 종료
+        conn.end();
+
+        // 성공 응답
+        res.json({ success: true });
+    } catch (error) {
+        console.error('에러:', error);
+        res.status(500).json({ error: '내부 서버 오류' });
+    }
+});
+
 app.get('/dog', (req, res) => {
     res.json({a: 30, b:40});
 })

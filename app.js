@@ -484,6 +484,88 @@ app.get('/liquor/search/:liquorname', async (req, res) => {
     }
 });
 
+
+// 주류 id로 한개조회 api.
+app.get('/liquor/info/:liquorID', async (req, res) => {
+    try {
+        // 요청에서 liquorname 파라미터 가져오기
+        const liquorID = req.params.liquorID;
+        
+        // 데이터베이스 연결 초기화
+        const conn = db.init();
+        
+        // 데이터베이스 연결
+        db.connect(conn);
+        
+        // liquor 테이블에서 해당 liquorname을 포함하는 주류들의 정보 가져오기
+        const liquorQuery = `
+      SELECT
+        liquorID,
+        liquorName,
+        liquorType,
+        liquorPrice,
+        liquorDetail
+      FROM liquor
+      WHERE liquorID = ?
+    `;
+        
+        // liquor_review 테이블에서 해당 liquorID의 리뷰 정보 가져오기
+        const reviewQuery = `
+      SELECT
+        liquorReviewID,
+        userNickname,
+        liquorID,
+        liquorStar,
+        liquorReviewDetail
+      FROM liquor_review
+      WHERE liquorID = ?
+    `;
+        
+        // 쿼리 실행
+        const [liquorRows] = await conn.promise().query(liquorQuery, liquorID);
+        
+        // 결과가 없을 경우 404 에러 응답
+        if (liquorRows.length === 0) {
+            res.status(404).json({ error: '주류 정보를 찾을 수 없습니다.' });
+            return;
+        }
+        
+        // 주류 정보를 저장할 배열
+        const liquorsInfo = [];
+        
+        // 주류별로 리뷰 정보를 가져와서 주류 정보에 추가
+        for (const liquorRow of liquorRows) {
+            const [reviewRows] = await conn.promise().query(reviewQuery, [liquorRow.liquorID]);
+            
+            // 주류 정보 객체
+            const liquorInfo = {
+                liquorID: liquorRow.liquorID,
+                liquorName: liquorRow.liquorName,
+                liquorType: liquorRow.liquorType,
+                liquorPrice: liquorRow.liquorPrice,
+                liquorDetail: liquorRow.liquorDetail,
+                liquorReview: reviewRows.map((reviewRow) => ({
+                    liquorReviewID: reviewRow.liquorReviewID,
+                    userNickname: reviewRow.userNickname,
+                    liquorStar: reviewRow.liquorStar,
+                    liquorReviewDetail: reviewRow.liquorReviewDetail
+                }))
+            };
+            
+            liquorsInfo.push(liquorInfo);
+        }
+        
+        // 연결 종료
+        conn.end();
+        
+        // 클라이언트에 응답 보내기
+        res.json(liquorsInfo);
+    } catch (error) {
+        console.error('에러:', error);
+        res.status(500).json({ error: '내부 서버 오류' });
+    }
+});
+
 // 주류 즐겨찾기 조회 (주류 아이디를 응답으로 보냄)
 app.get('/liquor/bookmark/:userID', async (req, res) => {
     try {
@@ -522,66 +604,66 @@ app.get('/liquor/bookmark/:userID', async (req, res) => {
 });
 
 //주류 이름 검색 api
-app.get('/liquor/search/:liquorname', async (req, res) => {
-    try {
-        // 요청에서 liquorname 파라미터 가져오기
-        const liquorname = req.params.liquorname;
-
-        // 데이터베이스 연결 초기화
-        const conn = db.init();
-
-        // 데이터베이스 연결
-        db.connect(conn);
-
-        // liquor 테이블에서 해당 liquorname을 포함하는 주류들의 정보 가져오기
-        const query = `
-      SELECT 
-        liquorID,
-        liquorName,
-        liquorType,
-        liquorPrice,
-        liquorDetail
-      FROM liquor
-      WHERE liquorName LIKE ?
-    `;
-
-        // 쿼리 실행
-        const [rows] = await conn.promise().query(query, [`%${liquorname}%`]);
-
-        // 연결 종료
-        conn.end();
-
-        // 클라이언트에 응답 보내기
-        if (rows.length > 0) {
-            // 검색된 이름이 여러개라면 배열에 담아서 전송
-            if (rows.length > 1) {
-                const liquorsInfo = rows.map((row) => ({
-                    liquorID: row.liquorID,
-                    liquorName: row.liquorName,
-                    liquorType: row.liquorType,
-                    liquorPrice: row.liquorPrice,
-                    liquorDetail: row.liquorDetail
-                }));
-                res.json(liquorsInfo);
-            } else {
-                // 검색된 이름이 하나라면 객체로 전송
-                const liquorInfo = {
-                    liquorID: rows[0].liquorID,
-                    liquorName: rows[0].liquorName,
-                    liquorType: rows[0].liquorType,
-                    liquorPrice: rows[0].liquorPrice,
-                    liquorDetail: rows[0].liquorDetail
-                };
-                res.json(liquorInfo);
-            }
-        } else {
-            res.status(404).json({ error: '주류 정보를 찾을 수 없습니다.' });
-        }
-    } catch (error) {
-        console.error('에러:', error);
-        res.status(500).json({ error: '내부 서버 오류' });
-    }
-});
+// app.get('/liquor/search/:liquorname', async (req, res) => {
+//     try {
+//         // 요청에서 liquorname 파라미터 가져오기
+//         const liquorname = req.params.liquorname;
+//
+//         // 데이터베이스 연결 초기화
+//         const conn = db.init();
+//
+//         // 데이터베이스 연결
+//         db.connect(conn);
+//
+//         // liquor 테이블에서 해당 liquorname을 포함하는 주류들의 정보 가져오기
+//         const query = `
+//       SELECT
+//         liquorID,
+//         liquorName,
+//         liquorType,
+//         liquorPrice,
+//         liquorDetail
+//       FROM liquor
+//       WHERE liquorName LIKE ?
+//     `;
+//
+//         // 쿼리 실행
+//         const [rows] = await conn.promise().query(query, [`%${liquorname}%`]);
+//
+//         // 연결 종료
+//         conn.end();
+//
+//         // 클라이언트에 응답 보내기
+//         if (rows.length > 0) {
+//             // 검색된 이름이 여러개라면 배열에 담아서 전송
+//             if (rows.length > 1) {
+//                 const liquorsInfo = rows.map((row) => ({
+//                     liquorID: row.liquorID,
+//                     liquorName: row.liquorName,
+//                     liquorType: row.liquorType,
+//                     liquorPrice: row.liquorPrice,
+//                     liquorDetail: row.liquorDetail
+//                 }));
+//                 res.json(liquorsInfo);
+//             } else {
+//                 // 검색된 이름이 하나라면 객체로 전송
+//                 const liquorInfo = {
+//                     liquorID: rows[0].liquorID,
+//                     liquorName: rows[0].liquorName,
+//                     liquorType: rows[0].liquorType,
+//                     liquorPrice: rows[0].liquorPrice,
+//                     liquorDetail: rows[0].liquorDetail
+//                 };
+//                 res.json(liquorInfo);
+//             }
+//         } else {
+//             res.status(404).json({ error: '주류 정보를 찾을 수 없습니다.' });
+//         }
+//     } catch (error) {
+//         console.error('에러:', error);
+//         res.status(500).json({ error: '내부 서버 오류' });
+//     }
+// });
 
 //주류 찜하기 기능 api
 app.post('/liquor/bookmark/:liquorID', async (req, res) => {

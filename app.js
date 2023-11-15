@@ -947,6 +947,82 @@ app.get('/liquor/review/:userNickname', async (req, res) => {
     }
 });
 
+//예약하기 api
+app.post('/bar/reservation/:barID', async (req, res) => {
+    const { barID } = req.params;
+    const { userID, reservationTime, reservationNum } = req.body;
+
+    try {
+        // 데이터베이스 연결 초기화
+        const conn = db.init();
+
+        // 데이터베이스 연결
+        db.connect(conn);
+
+        // 예약 정보 저장하는 쿼리
+        const insertReservationQuery = 'INSERT INTO reservation (barID, userID, reservationTime, reservationNum) VALUES (?, ?, ?, ?)';
+
+        // 쿼리 실행
+        await conn.promise().query(insertReservationQuery, [barID, userID, reservationTime, reservationNum]);
+
+        conn.end(); // 연결 종료
+
+        // 성공 응답
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Error:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+//예약내역 불러오기 api
+app.get('/bar/reservation/:userID', async (req, res) => {
+    try {
+        // 요청에서 userID 파라미터 가져오기
+        const userID = req.params.userID;
+
+        // 데이터베이스 연결 초기화
+        const conn = db.init();
+
+        // 데이터베이스 연결
+        db.connect(conn);
+
+        // 예약 내역을 불러오는 쿼리
+        const getReservationQuery = `
+            SELECT 
+                r.reservationID,
+                r.barID,
+                r.reservationTime,
+                b.barName
+            FROM reservation r
+            JOIN bar b ON r.barID = b.barID
+            WHERE r.userID = ?
+        `;
+
+        // 쿼리 실행
+        const [reservationRows] = await conn.promise().query(getReservationQuery, [userID]);
+
+        // 연결 종료
+        conn.end();
+
+        // 클라이언트에 응답 보내기
+        if (reservationRows.length > 0) {
+            // 예약된 내역이 여러개라면 배열에 담아서 전송
+            const reservationList = reservationRows.map((row) => ({
+                reservationID: row.reservationID,
+                barID: row.barID,
+                barName: row.barName,
+                reservationTime: row.reservationTime,
+            }));
+            res.json(reservationList);
+        } else {
+            res.status(404).json({ error: '예약 내역을 찾을 수 없습니다.' });
+        }
+    } catch (error) {
+        console.error('에러:', error);
+        res.status(500).json({ error: '내부 서버 오류' });
+    }
+});
 app.get('/dog', (req, res) => {
     res.json({a: 30, b:40});
 })

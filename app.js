@@ -630,56 +630,56 @@ app.get('/liquor/search/:liquorname', async (req, res) => {
 // 주류 id로 한개조회 api.
 app.get('/liquor/info/:liquorID', async (req, res) => {
     try {
-        // 요청에서 liquorname 파라미터 가져오기
+        // 요청에서 liquorID 파라미터 가져오기
         const liquorID = req.params.liquorID;
-        
+
         // 데이터베이스 연결 초기화
         const conn = db.init();
-        
+
         // 데이터베이스 연결
         db.connect(conn);
-        
-        // liquor 테이블에서 해당 liquorname을 포함하는 주류들의 정보 가져오기
+
+        // liquor 테이블에서 해당 liquorID을 포함하는 주류들의 정보 가져오기
         const liquorQuery = `
-      SELECT
-        liquorID,
-        liquorName,
-        liquorType,
-        liquorPrice,
-        liquorDetail
-      FROM liquor
-      WHERE liquorID = ?
-    `;
-        
+          SELECT
+            liquorID,
+            liquorName,
+            liquorType,
+            liquorPrice,
+            liquorDetail
+          FROM liquor
+          WHERE liquorID = ?
+        `;
+
         // liquor_review 테이블에서 해당 liquorID의 리뷰 정보 가져오기
         const reviewQuery = `
-      SELECT
-        liquorReviewID,
-        userNickname,
-        liquorID,
-        liquorStar,
-        liquorReviewDetail,
-        liquorReviewTime
-      FROM liquor_review
-      WHERE liquorID = ?
-    `;
-        
+          SELECT
+            liquorReviewID,
+            userNickname,
+            liquorID,
+            liquorStar,
+            liquorReviewDetail,
+            liquorReviewTime
+          FROM liquor_review
+          WHERE liquorID = ?
+        `;
+
         // 쿼리 실행
         const [liquorRows] = await conn.promise().query(liquorQuery, liquorID);
-        
+
         // 결과가 없을 경우 404 에러 응답
         if (liquorRows.length === 0) {
             res.status(404).json({ error: '주류 정보를 찾을 수 없습니다.' });
             return;
         }
-        
+
         // 주류 정보를 저장할 배열
         const liquorsInfo = [];
-        
+
         // 주류별로 리뷰 정보를 가져와서 주류 정보에 추가
         for (const liquorRow of liquorRows) {
             const [reviewRows] = await conn.promise().query(reviewQuery, [liquorRow.liquorID]);
-            
+
             // 주류 정보 객체
             const liquorInfo = {
                 liquorID: liquorRow.liquorID,
@@ -695,13 +695,17 @@ app.get('/liquor/info/:liquorID', async (req, res) => {
                     liquorReviewTime: reviewRow.liquorReviewTime
                 }))
             };
-            
+
+            // liquor_review에서 해당 liquorID의 liquorStar 평균 계산
+            const averageLiquorStar = reviewRows.reduce((sum, review) => sum + review.liquorStar, 0) / reviewRows.length;
+            liquorInfo.averageLiquorStar = averageLiquorStar;
+
             liquorsInfo.push(liquorInfo);
         }
-        
+
         // 연결 종료
         conn.end();
-        
+
         // 클라이언트에 응답 보내기
         res.json(liquorsInfo);
     } catch (error) {
@@ -940,6 +944,202 @@ app.get('/liquor/review/:userNickname', async (req, res) => {
     } catch (error) {
         console.error('Error:', error);
         res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+//예약하기 api
+app.post('/bar/reservation/:barID', async (req, res) => {
+    const { barID } = req.params;
+    const { userID, reservationTime, reservationNum } = req.body;
+
+    try {
+        // 데이터베이스 연결 초기화
+        const conn = db.init();
+
+        // 데이터베이스 연결
+        db.connect(conn);
+
+        // 예약 정보 저장하는 쿼리
+        const insertReservationQuery = 'INSERT INTO reservation (barID, userID, reservationTime, reservationNum) VALUES (?, ?, ?, ?)';
+
+        // 쿼리 실행
+        await conn.promise().query(insertReservationQuery, [barID, userID, reservationTime, reservationNum]);
+
+        conn.end(); // 연결 종료
+
+        // 성공 응답
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Error:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+//예약내역 불러오기 api
+app.get('/bar/reservation/:userID', async (req, res) => {
+    try {
+        // 요청에서 userID 파라미터 가져오기
+        const userID = req.params.userID;
+
+        // 데이터베이스 연결 초기화
+        const conn = db.init();
+
+        // 데이터베이스 연결
+        db.connect(conn);
+
+        // 예약 내역을 불러오는 쿼리
+        const getReservationQuery = `
+            SELECT 
+                r.reservationID,
+                r.barID,
+                r.reservationTime,
+                b.barName
+            FROM reservation r
+            JOIN bar b ON r.barID = b.barID
+            WHERE r.userID = ?
+        `;
+
+        // 쿼리 실행
+        const [reservationRows] = await conn.promise().query(getReservationQuery, [userID]);
+
+        // 연결 종료
+        conn.end();
+
+        // 클라이언트에 응답 보내기
+        if (reservationRows.length > 0) {
+            // 예약된 내역이 여러개라면 배열에 담아서 전송
+            const reservationList = reservationRows.map((row) => ({
+                reservationID: row.reservationID,
+                barID: row.barID,
+                barName: row.barName,
+                reservationTime: row.reservationTime,
+            }));
+            res.json(reservationList);
+        } else {
+            res.status(404).json({ error: '예약 내역을 찾을 수 없습니다.' });
+        }
+    } catch (error) {
+        console.error('에러:', error);
+        res.status(500).json({ error: '내부 서버 오류' });
+    }
+});
+
+//로그인 아이디 중복체크 api
+app.get('/signup/loginID/:loginID', async (req, res) => {
+    try {
+        // 요청에서 loginID 파라미터 가져오기
+        const loginID = req.params.loginID;
+
+        // 데이터베이스 연결 초기화
+        const conn = db.init();
+
+        // 데이터베이스 연결
+        db.connect(conn);
+
+        // 중복 아이디 확인 쿼리
+        const checkDuplicateIDQuery = 'SELECT * FROM user WHERE loginID = ?';
+
+        // 쿼리 실행
+        const [userRows] = await conn.promise().query(checkDuplicateIDQuery, [loginID]);
+
+        // 연결 종료
+        conn.end();
+
+        // 클라이언트에 응답 보내기
+        if (userRows.length > 0) {
+            res.status(400).json({ error: '이미 존재하는 아이디입니다.' });
+        } else {
+            res.json({ message: '사용 가능한 아이디입니다.' });
+        }
+    } catch (error) {
+        console.error('에러:', error);
+        res.status(500).json({ error: '내부 서버 오류' });
+    }
+});
+
+//닉네임 중복체크 api
+app.get('/signup/userNickname/:userNickname', async (req, res) => {
+    try {
+        // 요청에서 userNickname 파라미터 가져오기
+        const userNickname = req.params.userNickname;
+
+        // 데이터베이스 연결 초기화
+        const conn = db.init();
+
+        // 데이터베이스 연결
+        db.connect(conn);
+
+        // 중복 닉네임 확인 쿼리
+        const checkDuplicateNicknameQuery = 'SELECT * FROM user WHERE userNickname = ?';
+
+        // 쿼리 실행
+        const [userRows] = await conn.promise().query(checkDuplicateNicknameQuery, [userNickname]);
+
+        // 연결 종료
+        conn.end();
+
+        // 클라이언트에 응답 보내기
+        if (userRows.length > 0) {
+            res.status(400).json({ error: '이미 존재하는 닉네임입니다.' });
+        } else {
+            res.json({ message: '사용 가능한 닉네임입니다.' });
+        }
+    } catch (error) {
+        console.error('에러:', error);
+        res.status(500).json({ error: '내부 서버 오류' });
+    }
+});
+
+//회원가입 api -> 여기서 중복체크도 해줌
+app.post('/signup', async (req, res) => {
+    try {
+        // 요청에서 필요한 정보 가져오기
+        const { loginID, loginPW, userNickname, userName, userEmail, deviceID } = req.body;
+
+        // 데이터베이스 연결 초기화
+        const conn = db.init();
+
+        // 데이터베이스 연결
+        db.connect(conn);
+
+        // 중복 아이디 확인 쿼리
+        const checkDuplicateIDQuery = 'SELECT * FROM user WHERE loginID = ?';
+
+        // 쿼리 실행
+        const [userRows] = await conn.promise().query(checkDuplicateIDQuery, [loginID]);
+
+        // 중복 아이디가 있으면 에러 응답
+        if (userRows.length > 0) {
+            conn.end(); // 연결 종료
+            return res.status(400).json({ error: '이미 존재하는 아이디입니다.' });
+        }
+
+        // 중복 닉네임 확인 쿼리
+        const checkDuplicateNicknameQuery = 'SELECT * FROM user WHERE userNickname = ?';
+
+        // 쿼리 실행
+        const [nicknameRows] = await conn.promise().query(checkDuplicateNicknameQuery, [userNickname]);
+
+        // 중복 닉네임이 있으면 에러 응답
+        if (nicknameRows.length > 0) {
+            conn.end(); // 연결 종료
+            return res.status(400).json({ error: '이미 존재하는 닉네임입니다.' });
+        }
+
+        // 사용자 등록 쿼리
+        const insertUserQuery = 'INSERT INTO user (loginID, loginPW, userNickname, userName, userEmail, deviceID) VALUES (?, ?, ?, ?, ?, ?)';
+
+        // 쿼리 실행
+        await conn.promise().query(insertUserQuery, [loginID, loginPW, userNickname, userName, userEmail, deviceID]);
+
+        // 연결 종료
+        conn.end();
+
+        // 성공 응답
+        res.json({ success: true });
+    } catch (error) {
+        console.error('에러:', error);
+        res.status(500).json({ error: '내부 서버 오류' });
     }
 });
 

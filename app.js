@@ -71,7 +71,7 @@ app.get('/bar/coordinate', async (req, res) => {
         // bar 테이블에서 barID가 1부터 10까지인 데이터 가져오기
         const barQuery = `
           SELECT 
-            barID, barName, barAddress, barType, barLatitude, barLongitude, barTag, barDetail, barCorkPrice
+            barID, barName, barAddress, barType, barLatitude, barLongitude, barTag, barDetail, barCorkPrice, barStartTime, barEndTime
           FROM bar
           WHERE barID BETWEEN 433 AND 444
         `;
@@ -130,6 +130,8 @@ app.get('/bar/coordinate', async (req, res) => {
                 barTag: row.barTag,
                 barDetail: row.barDetail,
                 barCorkPrice: row.barCorkPrice,
+                barStartTime: row.barStartTime,
+                barEndTime: row.barEndTime,
                 barReservation: reservations,
                 barReview: reviews,
                 barStarAverage: barStarAverage,
@@ -259,7 +261,9 @@ app.get('/bar/info/:barID', async (req, res) => {
             barType,
             barLatitude,
             barLongitude,
-            barDetail
+            barDetail,
+            barStartTime,
+            barEndTime
           FROM bar
           WHERE barID = ?
         `;
@@ -312,6 +316,8 @@ app.get('/bar/info/:barID', async (req, res) => {
                     barLatitude: Number(row.barLatitude),
                     barLongitude: Number(row.barLongitude),
                     barDetail: row.barDetail,
+                    barStartTime: row.barStartTime,
+                    barEndTime: row.barEndTime,
                     barReservation: reservations,
                     barReview: reviews,
                     barStarAverage: barStarAverage,

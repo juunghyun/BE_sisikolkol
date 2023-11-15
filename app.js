@@ -484,7 +484,7 @@ app.get('/bar/review/:userNickname', async (req, res) => {
 
         // 리뷰한 가게 조회하는 쿼리
         const getReviewedBarsQuery = `
-      SELECT br.barReviewID, br.barID, br.userNickname, br.barStar, br.barReviewDetail, br.barReviewTime b.barName
+      SELECT br.barReviewID, br.barID, br.userNickname, br.barStar, br.barReviewDetail, br.barReviewTime, b.barName
       FROM bar_review br
       INNER JOIN bar b ON br.barID = b.barID
       WHERE br.userNickname = ?
@@ -630,56 +630,56 @@ app.get('/liquor/search/:liquorname', async (req, res) => {
 // 주류 id로 한개조회 api.
 app.get('/liquor/info/:liquorID', async (req, res) => {
     try {
-        // 요청에서 liquorname 파라미터 가져오기
+        // 요청에서 liquorID 파라미터 가져오기
         const liquorID = req.params.liquorID;
-        
+
         // 데이터베이스 연결 초기화
         const conn = db.init();
-        
+
         // 데이터베이스 연결
         db.connect(conn);
-        
-        // liquor 테이블에서 해당 liquorname을 포함하는 주류들의 정보 가져오기
+
+        // liquor 테이블에서 해당 liquorID을 포함하는 주류들의 정보 가져오기
         const liquorQuery = `
-      SELECT
-        liquorID,
-        liquorName,
-        liquorType,
-        liquorPrice,
-        liquorDetail
-      FROM liquor
-      WHERE liquorID = ?
-    `;
-        
+          SELECT
+            liquorID,
+            liquorName,
+            liquorType,
+            liquorPrice,
+            liquorDetail
+          FROM liquor
+          WHERE liquorID = ?
+        `;
+
         // liquor_review 테이블에서 해당 liquorID의 리뷰 정보 가져오기
         const reviewQuery = `
-      SELECT
-        liquorReviewID,
-        userNickname,
-        liquorID,
-        liquorStar,
-        liquorReviewDetail,
-        liquorReviewTime
-      FROM liquor_review
-      WHERE liquorID = ?
-    `;
-        
+          SELECT
+            liquorReviewID,
+            userNickname,
+            liquorID,
+            liquorStar,
+            liquorReviewDetail,
+            liquorReviewTime
+          FROM liquor_review
+          WHERE liquorID = ?
+        `;
+
         // 쿼리 실행
         const [liquorRows] = await conn.promise().query(liquorQuery, liquorID);
-        
+
         // 결과가 없을 경우 404 에러 응답
         if (liquorRows.length === 0) {
             res.status(404).json({ error: '주류 정보를 찾을 수 없습니다.' });
             return;
         }
-        
+
         // 주류 정보를 저장할 배열
         const liquorsInfo = [];
-        
+
         // 주류별로 리뷰 정보를 가져와서 주류 정보에 추가
         for (const liquorRow of liquorRows) {
             const [reviewRows] = await conn.promise().query(reviewQuery, [liquorRow.liquorID]);
-            
+
             // 주류 정보 객체
             const liquorInfo = {
                 liquorID: liquorRow.liquorID,
@@ -695,13 +695,17 @@ app.get('/liquor/info/:liquorID', async (req, res) => {
                     liquorReviewTime: reviewRow.liquorReviewTime
                 }))
             };
-            
+
+            // liquor_review에서 해당 liquorID의 liquorStar 평균 계산
+            const averageLiquorStar = reviewRows.reduce((sum, review) => sum + review.liquorStar, 0) / reviewRows.length;
+            liquorInfo.averageLiquorStar = averageLiquorStar;
+
             liquorsInfo.push(liquorInfo);
         }
-        
+
         // 연결 종료
         conn.end();
-        
+
         // 클라이언트에 응답 보내기
         res.json(liquorsInfo);
     } catch (error) {

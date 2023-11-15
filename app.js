@@ -205,6 +205,75 @@ app.get('/bar/search/:barname', async (req, res) => {
     }
 });
 
+
+//가게 id로 정보가져오는 api -> 찜한 목록을 id로 받고 해당 가게를 id로 검색해야하기 때문
+app.get('/bar/info/:barID', async (req, res) => {
+    try {
+        // 요청에서 barname 파라미터 가져오기
+        const barID = req.params.barID;
+        
+        // 데이터베이스 연결 초기화
+        const conn = db.init();
+        
+        // 데이터베이스 연결
+        db.connect(conn);
+        
+        // bar 테이블에서 해당 barname을 포함하는 가게들의 정보 가져오기
+        const query = `
+      SELECT
+        barID,
+        barName,
+        barAddress,
+        barType,
+        barLatitude,
+        barLongitude,
+        barDetail
+      FROM bar
+      WHERE barID = ?
+    `;
+        
+        // 쿼리 실행
+        const [rows] = await conn.promise().query(query, [barID]);
+        
+        // 연결 종료
+        conn.end();
+        
+        // 클라이언트에 응답 보내기
+        if (rows.length > 0) {
+            // 검색된 이름이 여러개라면 배열에 담아서 전송
+            if (rows.length > 0) {
+                const barsInfo = rows.map((row) => ({
+                    barID: row.barID,
+                    barName: row.barName,
+                    barAddress: row.barAddress,
+                    barType: row.barType,
+                    barLatitude: Number(row.barLatitude),
+                    barLongitude: Number(row.barLongitude),
+                    barDetail: row.barDetail
+                }));
+                res.json(barsInfo);
+            } else {
+                // 검색된 이름이 하나라면 객체로 전송
+                const barInfo = {
+                    barID: rows[0].barID,
+                    barName: rows[0].barName,
+                    barAddress: rows[0].barAddress,
+                    barType: rows[0].barType,
+                    barLatitude: Number(rows[0].barLatitude),
+                    barLongitude: Number(rows[0].barLongitude),
+                    barDetail: rows[0].barDetail
+                };
+                res.json(barInfo);
+            }
+        } else {
+            res.status(404).json({ error: '가게 정보를 찾을 수 없습니다.' });
+        }
+    } catch (error) {
+        console.error('에러:', error);
+        res.status(500).json({ error: '내부 서버 오류' });
+    }
+});
+
 //가게 찜하기 api
 app.post('/bar/bookmark/:barID', async (req, res) => {
     try {

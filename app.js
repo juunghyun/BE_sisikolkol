@@ -73,7 +73,7 @@ app.get('/bar/coordinate', async (req, res) => {
       SELECT 
         barID, barName, barAddress, barType, barLatitude, barLongitude, barTag, barDetail, barCorkPrice
       FROM bar
-      WHERE barID BETWEEN 1 AND 10
+      WHERE barID BETWEEN 433 AND 444
     `;
 
         // reservation 테이블에서 해당 barID와 동일한 컬럼의 reservationTime 가져오기
@@ -81,7 +81,7 @@ app.get('/bar/coordinate', async (req, res) => {
       SELECT 
         barID, reservationTime
       FROM reservation
-      WHERE barID BETWEEN 1 AND 10
+      WHERE barID BETWEEN 433 AND 444
     `;
 
         // bar_review 테이블에서 해당 barID와 동일한 컬럼의 데이터 가져오기
@@ -89,7 +89,7 @@ app.get('/bar/coordinate', async (req, res) => {
       SELECT 
         barID, userNickname, barStar, barReviewDetail
       FROM bar_review
-      WHERE barID BETWEEN 1 AND 10
+      WHERE barID BETWEEN 433 AND 444
     `;
 
         // 쿼리 실행
@@ -119,8 +119,8 @@ app.get('/bar/coordinate', async (req, res) => {
                 barName: row.barName,
                 barAddress: row.barAddress,
                 barType: row.barType,
-                barLatitude: row.barLatitude,
-                barLongitude: row.barLongitude,
+                barLatitude: Number(row.barLatitude),
+                barLongitude: Number(row.barLongitude),
                 barTag: row.barTag,
                 barDetail: row.barDetail,
                 barCorkPrice: row.barCorkPrice,
@@ -178,8 +178,8 @@ app.get('/bar/search/:barname', async (req, res) => {
                     barName: row.barName,
                     barAddress: row.barAddress,
                     barType: row.barType,
-                    barLatitude: row.barLatitude,
-                    barLongitude: row.barLongitude,
+                    barLatitude: Number(row.barLatitude),
+                    barLongitude: Number(row.barLongitude),
                     barDetail: row.barDetail
                 }));
                 res.json(barsInfo);
@@ -190,8 +190,8 @@ app.get('/bar/search/:barname', async (req, res) => {
                     barName: rows[0].barName,
                     barAddress: rows[0].barAddress,
                     barType: rows[0].barType,
-                    barLatitude: rows[0].barLatitude,
-                    barLongitude: rows[0].barLongitude,
+                    barLatitude: Number(rows[0].barLatitude),
+                    barLongitude: Number(rows[0].barLongitude),
                     barDetail: rows[0].barDetail
                 };
                 res.json(barInfo);
@@ -377,7 +377,6 @@ app.get('/liquor/info', async (req, res) => {
       SELECT 
         liquorID, liquorType, liquorName, liquorPrice, liquorDetail
       FROM liquor
-      //여기 부분을 원하는 만큼으로 설정하세요 범위설정
       WHERE liquorID BETWEEN 1 AND 10
     `;
 

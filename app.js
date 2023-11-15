@@ -87,7 +87,7 @@ app.get('/bar/coordinate', async (req, res) => {
         // bar_review 테이블에서 해당 barID와 동일한 컬럼의 데이터 가져오기
         const reviewQuery = `
       SELECT 
-        barID, userNickname, barStar, barReviewDetail
+        barID, userNickname, barStar, barReviewDetail, barReviewTime
       FROM bar_review
       WHERE barID BETWEEN 433 AND 444
     `;
@@ -112,6 +112,7 @@ app.get('/bar/coordinate', async (req, res) => {
                     userNickname: review.userNickname,
                     barReviewDetail: review.barReviewDetail,
                     barStar: review.barStar,
+                    barReviewTime : review.barReviewTime
                 }));
 
             return {
@@ -384,11 +385,14 @@ app.post('/bar/review/:barID', async (req, res) => {
             return res.status(400).json({ error: '이미 존재하는 리뷰입니다' });
         }
 
+        // 현재 날짜 생성 (YYYY-MM-DD 형식)
+        const currentDate = new Date().toISOString().slice(0, 10);
+
         // 가게 리뷰 저장하는 쿼리
-        const insertReviewQuery = 'INSERT INTO bar_review (barID, userNickname, barStar, barReviewDetail) VALUES (?, ?, ?, ?)';
+        const insertReviewQuery = 'INSERT INTO bar_review (barID, userNickname, barStar, barReviewDetail, barReviewTime) VALUES (?, ?, ?, ?, ?)';
 
         // 쿼리 실행
-        await conn.promise().query(insertReviewQuery, [barID, userNickname, barStar, barReviewDetail]);
+        await conn.promise().query(insertReviewQuery, [barID, userNickname, barStar, barReviewDetail, currentDate]);
 
         conn.end(); // 연결 종료
 
@@ -413,7 +417,7 @@ app.get('/bar/review/:userNickname', async (req, res) => {
 
         // 리뷰한 가게 조회하는 쿼리
         const getReviewedBarsQuery = `
-      SELECT br.barReviewID, br.barID, br.userNickname, br.barStar, br.barReviewDetail, b.barName
+      SELECT br.barReviewID, br.barID, br.userNickname, br.barStar, br.barReviewDetail, br.barReviewTime b.barName
       FROM bar_review br
       INNER JOIN bar b ON br.barID = b.barID
       WHERE br.userNickname = ?
@@ -503,7 +507,8 @@ app.get('/liquor/search/:liquorname', async (req, res) => {
         userNickname,
         liquorID,
         liquorStar,
-        liquorReviewDetail
+        liquorReviewDetail,
+        liquorReviewTime
       FROM liquor_review
       WHERE liquorID = ?
     `;
@@ -535,7 +540,8 @@ app.get('/liquor/search/:liquorname', async (req, res) => {
                     liquorReviewID: reviewRow.liquorReviewID,
                     userNickname: reviewRow.userNickname,
                     liquorStar: reviewRow.liquorStar,
-                    liquorReviewDetail: reviewRow.liquorReviewDetail
+                    liquorReviewDetail: reviewRow.liquorReviewDetail,
+                    liquorReviewTime: reviewRow.liquorReviewTime
                 }))
             };
 
@@ -585,7 +591,8 @@ app.get('/liquor/info/:liquorID', async (req, res) => {
         userNickname,
         liquorID,
         liquorStar,
-        liquorReviewDetail
+        liquorReviewDetail,
+        liquorReviewTime
       FROM liquor_review
       WHERE liquorID = ?
     `;
@@ -617,7 +624,8 @@ app.get('/liquor/info/:liquorID', async (req, res) => {
                     liquorReviewID: reviewRow.liquorReviewID,
                     userNickname: reviewRow.userNickname,
                     liquorStar: reviewRow.liquorStar,
-                    liquorReviewDetail: reviewRow.liquorReviewDetail
+                    liquorReviewDetail: reviewRow.liquorReviewDetail,
+                    liquorReviewTime: reviewRow.liquorReviewTime
                 }))
             };
             
@@ -824,10 +832,13 @@ app.post('/liquor/review/:liquorID', async (req, res) => {
             return res.status(400).json({ error: '이미 리뷰한 주류입니다' });
         }
 
-        // 리뷰 추가(닉네임, 주류ID, 주류별점, 리뷰내용)
+        // 현재 날짜 생성 (YYYY-MM-DD 형식)
+        const currentDate = new Date().toISOString().slice(0, 10);
+
+        // 리뷰 추가(닉네임, 주류ID, 주류별점, 리뷰내용, 리뷰 시간)
         await conn.promise().query(
-            'INSERT INTO liquor_review (userNickname, liquorID, liquorStar, liquorReviewDetail) VALUES (?, ?, ?, ?)',
-            [userNickname, liquorID, liquorStar, liquorReviewDetail]
+            'INSERT INTO liquor_review (userNickname, liquorID, liquorStar, liquorReviewDetail, liquorReviewTime) VALUES (?, ?, ?, ?, ?)',
+            [userNickname, liquorID, liquorStar, liquorReviewDetail, currentDate]
         );
 
         conn.end(); // 연결 종료
@@ -851,7 +862,7 @@ app.get('/liquor/review/:userNickname', async (req, res) => {
 
         // 주류 리뷰 내역 불러오는 쿼리
         const [reviews] = await conn.promise().query(
-            'SELECT l.liquorReviewID, l.userNickname, l.liquorID, l.liquorStar, l.liquorReviewDetail, li.liquorName FROM liquor_review l JOIN liquor li ON l.liquorID = li.liquorID WHERE l.userNickname = ?',
+            'SELECT l.liquorReviewID, l.userNickname, l.liquorID, l.liquorStar, l.liquorReviewDetail, l.liquorReviewtime, li.liquorName FROM liquor_review l JOIN liquor li ON l.liquorID = li.liquorID WHERE l.userNickname = ?',
             [userNickname]
         );
 

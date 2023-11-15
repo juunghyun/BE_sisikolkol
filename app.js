@@ -59,7 +59,7 @@ app.post('/login', (req, res) => {
     });
 });
 
-//가게 정보 불러오기 api
+//가게 정보 불러오기 api -> 별점 평균치도 보내도록 설정 완료
 app.get('/bar/coordinate', async (req, res) => {
     try {
         // 데이터베이스 연결 초기화
@@ -70,27 +70,27 @@ app.get('/bar/coordinate', async (req, res) => {
 
         // bar 테이블에서 barID가 1부터 10까지인 데이터 가져오기
         const barQuery = `
-      SELECT 
-        barID, barName, barAddress, barType, barLatitude, barLongitude, barTag, barDetail, barCorkPrice
-      FROM bar
-      WHERE barID BETWEEN 433 AND 444
-    `;
+          SELECT 
+            barID, barName, barAddress, barType, barLatitude, barLongitude, barTag, barDetail, barCorkPrice
+          FROM bar
+          WHERE barID BETWEEN 433 AND 444
+        `;
 
         // reservation 테이블에서 해당 barID와 동일한 컬럼의 reservationTime 가져오기
         const reservationQuery = `
-      SELECT 
-        barID, reservationTime
-      FROM reservation
-      WHERE barID BETWEEN 433 AND 444
-    `;
+          SELECT 
+            barID, reservationTime
+          FROM reservation
+          WHERE barID BETWEEN 433 AND 444
+        `;
 
         // bar_review 테이블에서 해당 barID와 동일한 컬럼의 데이터 가져오기
         const reviewQuery = `
-      SELECT 
-        barID, userNickname, barStar, barReviewDetail, barReviewTime
-      FROM bar_review
-      WHERE barID BETWEEN 433 AND 444
-    `;
+          SELECT 
+            barID, userNickname, barStar, barReviewDetail, barReviewTime
+          FROM bar_review
+          WHERE barID BETWEEN 433 AND 444
+        `;
 
         // 쿼리 실행
         const [barRows] = await conn.promise().query(barQuery);
@@ -112,8 +112,13 @@ app.get('/bar/coordinate', async (req, res) => {
                     userNickname: review.userNickname,
                     barReviewDetail: review.barReviewDetail,
                     barStar: review.barStar,
-                    barReviewTime : review.barReviewTime
+                    barReviewTime: review.barReviewTime
                 }));
+
+            // bar_review에서 해당 barID의 barStar 평균 계산
+            const barStarAverage = reviewRows
+                .filter(review => review.barID === row.barID)
+                .reduce((sum, review) => sum + review.barStar, 0) / reviews.length;
 
             return {
                 barID: row.barID,
@@ -127,6 +132,7 @@ app.get('/bar/coordinate', async (req, res) => {
                 barCorkPrice: row.barCorkPrice,
                 barReservation: reservations,
                 barReview: reviews,
+                barStarAverage: barStarAverage,
             };
         });
 
@@ -138,7 +144,7 @@ app.get('/bar/coordinate', async (req, res) => {
     }
 });
 
-//가게 이름 검색 api
+//가게 이름 검색 api -> 리뷰, 예약, 별점 평균치도 보내도록 설정 완료
 app.get('/bar/search/:barname', async (req, res) => {
     try {
         // 요청에서 barname 파라미터 가져오기
@@ -151,52 +157,77 @@ app.get('/bar/search/:barname', async (req, res) => {
         db.connect(conn);
 
         // bar 테이블에서 해당 barname을 포함하는 가게들의 정보 가져오기
-        const query = `
-      SELECT 
-        barID,
-        barName,
-        barAddress,
-        barType,
-        barLatitude,
-        barLongitude,
-        barDetail
-      FROM bar
-      WHERE barName LIKE ?
-    `;
+        const barQuery = `
+          SELECT 
+            barID,
+            barName,
+            barAddress,
+            barType,
+            barLatitude,
+            barLongitude,
+            barDetail
+          FROM bar
+          WHERE barName LIKE ?
+        `;
+
+        // reservation 테이블에서 해당 barID와 동일한 컬럼의 reservationTime 가져오기
+        const reservationQuery = `
+          SELECT 
+            reservationTime
+          FROM reservation
+          WHERE barID = ?
+        `;
+
+        // bar_review 테이블에서 해당 barID와 동일한 컬럼의 데이터 가져오기
+        const reviewQuery = `
+          SELECT 
+            userNickname, barStar, barReviewDetail, barReviewTime
+          FROM bar_review
+          WHERE barID = ?
+        `;
 
         // 쿼리 실행
-        const [rows] = await conn.promise().query(query, [`%${barname}%`]);
+        const [barRows] = await conn.promise().query(barQuery, [`%${barname}%`]);
 
         // 연결 종료
         conn.end();
 
         // 클라이언트에 응답 보내기
-        if (rows.length > 0) {
-            // 검색된 이름이 여러개라면 배열에 담아서 전송
-            if (rows.length > 0) {
-                const barsInfo = rows.map((row) => ({
+        if (barRows.length > 0) {
+            const barsInfo = barRows.map(async (row) => {
+                // reservation 정보 가져오기
+                const [reservationRows] = await conn.promise().query(reservationQuery, [row.barID]);
+                const reservations = reservationRows.map(reservation => reservation.reservationTime);
+
+                // bar_review 정보 가져오기
+                const [reviewRows] = await conn.promise().query(reviewQuery, [row.barID]);
+                const reviews = reviewRows.map(review => ({
+                    userNickname: review.userNickname,
+                    barReviewDetail: review.barReviewDetail,
+                    barStar: review.barStar,
+                    barReviewTime: review.barReviewTime
+                }));
+
+                // bar_review에서 해당 barID의 barStar 평균 계산
+                const barStarAverage = reviewRows.reduce((sum, review) => sum + review.barStar, 0) / reviews.length;
+
+                // 모든 정보를 합쳐서 반환
+                return {
                     barID: row.barID,
                     barName: row.barName,
                     barAddress: row.barAddress,
                     barType: row.barType,
                     barLatitude: Number(row.barLatitude),
                     barLongitude: Number(row.barLongitude),
-                    barDetail: row.barDetail
-                }));
-                res.json(barsInfo);
-            } else {
-                // 검색된 이름이 하나라면 객체로 전송
-                const barInfo = {
-                    barID: rows[0].barID,
-                    barName: rows[0].barName,
-                    barAddress: rows[0].barAddress,
-                    barType: rows[0].barType,
-                    barLatitude: Number(rows[0].barLatitude),
-                    barLongitude: Number(rows[0].barLongitude),
-                    barDetail: rows[0].barDetail
+                    barDetail: row.barDetail,
+                    barReservation: reservations,
+                    barReview: reviews,
+                    barStarAverage: barStarAverage,
                 };
-                res.json(barInfo);
-            }
+            });
+
+            // 검색된 이름이 여러개라면 배열에 담아서 전송
+            res.json(await Promise.all(barsInfo));
         } else {
             res.status(404).json({ error: '가게 정보를 찾을 수 없습니다.' });
         }
@@ -210,59 +241,95 @@ app.get('/bar/search/:barname', async (req, res) => {
 //가게 id로 정보가져오는 api -> 찜한 목록을 id로 받고 해당 가게를 id로 검색해야하기 때문
 app.get('/bar/info/:barID', async (req, res) => {
     try {
-        // 요청에서 barname 파라미터 가져오기
+        // 요청에서 barID 파라미터 가져오기
         const barID = req.params.barID;
-        
+
         // 데이터베이스 연결 초기화
         const conn = db.init();
-        
+
         // 데이터베이스 연결
         db.connect(conn);
-        
-        // bar 테이블에서 해당 barname을 포함하는 가게들의 정보 가져오기
-        const query = `
-      SELECT
-        barID,
-        barName,
-        barAddress,
-        barType,
-        barLatitude,
-        barLongitude,
-        barDetail
-      FROM bar
-      WHERE barID = ?
-    `;
-        
+
+        // bar 테이블에서 해당 barID의 정보 가져오기
+        const barQuery = `
+          SELECT
+            barID,
+            barName,
+            barAddress,
+            barType,
+            barLatitude,
+            barLongitude,
+            barDetail
+          FROM bar
+          WHERE barID = ?
+        `;
+
+        // reservation 테이블에서 해당 barID와 동일한 컬럼의 reservationTime 가져오기
+        const reservationQuery = `
+          SELECT 
+            reservationTime
+          FROM reservation
+          WHERE barID = ?
+        `;
+
+        // bar_review 테이블에서 해당 barID와 동일한 컬럼의 데이터 가져오기
+        const reviewQuery = `
+          SELECT 
+            userNickname, barStar, barReviewDetail, barReviewTime
+          FROM bar_review
+          WHERE barID = ?
+        `;
+
         // 쿼리 실행
-        const [rows] = await conn.promise().query(query, [barID]);
-        
+        const [barRows] = await conn.promise().query(barQuery, [barID]);
+        const [reservationRows] = await conn.promise().query(reservationQuery, [barID]);
+        const [reviewRows] = await conn.promise().query(reviewQuery, [barID]);
+
         // 연결 종료
         conn.end();
-        
+
         // 클라이언트에 응답 보내기
-        if (rows.length > 0) {
+        if (barRows.length > 0) {
+            const reservations = reservationRows.map(reservation => reservation.reservationTime);
+
+            const reviews = reviewRows.map(review => ({
+                userNickname: review.userNickname,
+                barReviewDetail: review.barReviewDetail,
+                barStar: review.barStar,
+                barReviewTime: review.barReviewTime
+            }));
+
+            // bar_review에서 해당 barID의 barStar 평균 계산
+            const barStarAverage = reviewRows.reduce((sum, review) => sum + review.barStar, 0) / reviews.length;
+
             // 검색된 이름이 여러개라면 배열에 담아서 전송
-            if (rows.length > 0) {
-                const barsInfo = rows.map((row) => ({
+            if (barRows.length > 0) {
+                const barsInfo = barRows.map((row) => ({
                     barID: row.barID,
                     barName: row.barName,
                     barAddress: row.barAddress,
                     barType: row.barType,
                     barLatitude: Number(row.barLatitude),
                     barLongitude: Number(row.barLongitude),
-                    barDetail: row.barDetail
+                    barDetail: row.barDetail,
+                    barReservation: reservations,
+                    barReview: reviews,
+                    barStarAverage: barStarAverage,
                 }));
                 res.json(barsInfo);
             } else {
                 // 검색된 이름이 하나라면 객체로 전송
                 const barInfo = {
-                    barID: rows[0].barID,
-                    barName: rows[0].barName,
-                    barAddress: rows[0].barAddress,
-                    barType: rows[0].barType,
-                    barLatitude: Number(rows[0].barLatitude),
-                    barLongitude: Number(rows[0].barLongitude),
-                    barDetail: rows[0].barDetail
+                    barID: barRows[0].barID,
+                    barName: barRows[0].barName,
+                    barAddress: barRows[0].barAddress,
+                    barType: barRows[0].barType,
+                    barLatitude: Number(barRows[0].barLatitude),
+                    barLongitude: Number(barRows[0].barLongitude),
+                    barDetail: barRows[0].barDetail,
+                    barReservation: reservations,
+                    barReview: reviews,
+                    barStarAverage: barStarAverage,
                 };
                 res.json(barInfo);
             }

@@ -484,7 +484,7 @@ app.get('/bar/review/:userNickname', async (req, res) => {
 
         // 리뷰한 가게 조회하는 쿼리
         const getReviewedBarsQuery = `
-      SELECT br.barReviewID, br.barID, br.userNickname, br.barStar, br.barReviewDetail, br.barReviewTime b.barName
+      SELECT br.barReviewID, br.barID, br.userNickname, br.barStar, br.barReviewDetail, br.barReviewTime, b.barName
       FROM bar_review br
       INNER JOIN bar b ON br.barID = b.barID
       WHERE br.userNickname = ?

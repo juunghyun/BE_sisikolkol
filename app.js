@@ -239,6 +239,7 @@ app.get('/bar/search/:barname', async (req, res) => {
     } catch (error) {
         console.error('에러:', error);
         res.status(500).json({ error: '내부 서버 오류' });
+        conn.end();
     }
 });
 
@@ -522,27 +523,45 @@ app.get('/liquor/info', async (req, res) => {
         db.connect(conn);
 
         // liquor 테이블에서 liquorID가 1부터 10까지인 데이터 가져오기
-        const query = `
-      SELECT 
-        liquorID, liquorType, liquorName, liquorPrice, liquorDetail
-      FROM liquor
-      WHERE liquorID BETWEEN 1 AND 10
-    `;
+        const liquorQuery = `
+          SELECT 
+            liquorID, liquorType, liquorName, liquorPrice, liquorDetail
+          FROM liquor
+          WHERE liquorID BETWEEN 1 AND 10
+        `;
 
         // 쿼리 실행
-        const [rows] = await conn.promise().query(query);
+        const [liquorRows] = await conn.promise().query(liquorQuery);
+
+        // 주류 정보를 저장할 배열
+        const liquorList = [];
+
+        // 주류별 리뷰 정보를 가져와서 주류 정보에 추가
+        for (const liquorRow of liquorRows) {
+            const reviewQuery = `
+              SELECT AVG(liquorStar) as liquorAvgStar
+              FROM liquor_review
+              WHERE liquorID = ?
+            `;
+
+            // 쿼리 실행
+            const [reviewRows] = await conn.promise().query(reviewQuery, [liquorRow.liquorID]);
+
+            // 주류 정보 객체
+            const liquorInfo = {
+                liquorID: liquorRow.liquorID,
+                liquorType: liquorRow.liquorType,
+                liquorName: liquorRow.liquorName,
+                liquorPrice: liquorRow.liquorPrice,
+                liquorDetail: liquorRow.liquorDetail,
+                liquorAvgStar: reviewRows[0].liquorAvgStar || 0, // If there are no reviews, default to 0
+            };
+
+            liquorList.push(liquorInfo);
+        }
 
         // 연결 종료
         conn.end();
-
-        // 데이터를 원하는 구조로 정리
-        const liquorList = rows.map(row => ({
-            liquorID: row.liquorID,
-            liquorType: row.liquorType,
-            liquorName: row.liquorName,
-            liquorPrice: row.liquorPrice,
-            liquorDetail: row.liquorDetail,
-        }));
 
         // 클라이언트에 응답 보내기
         res.json(liquorList);
@@ -576,19 +595,6 @@ app.get('/liquor/search/:liquorname', async (req, res) => {
       WHERE liquorName LIKE ?
     `;
 
-        // liquor_review 테이블에서 해당 liquorID의 리뷰 정보 가져오기
-        const reviewQuery = `
-      SELECT 
-        liquorReviewID,
-        userNickname,
-        liquorID,
-        liquorStar,
-        liquorReviewDetail,
-        liquorReviewTime
-      FROM liquor_review
-      WHERE liquorID = ?
-    `;
-
         // 쿼리 실행
         const [liquorRows] = await conn.promise().query(liquorQuery, [`%${liquorname}%`]);
 
@@ -601,9 +607,26 @@ app.get('/liquor/search/:liquorname', async (req, res) => {
         // 주류 정보를 저장할 배열
         const liquorsInfo = [];
 
-        // 주류별로 리뷰 정보를 가져와서 주류 정보에 추가
+        // 주류별 리뷰 정보를 가져와서 주류 정보에 추가
         for (const liquorRow of liquorRows) {
+            const reviewQuery = `
+              SELECT 
+                liquorReviewID,
+                userNickname,
+                liquorID,
+                liquorStar,
+                liquorReviewDetail,
+                liquorReviewTime
+              FROM liquor_review
+              WHERE liquorID = ?
+            `;
+
+            // 쿼리 실행
             const [reviewRows] = await conn.promise().query(reviewQuery, [liquorRow.liquorID]);
+
+            // Calculate average liquorStar
+            const totalStars = reviewRows.reduce((sum, review) => sum + review.liquorStar, 0);
+            const liquorAvgStar = totalStars / reviewRows.length || 0; // If there are no reviews, default to 0
 
             // 주류 정보 객체
             const liquorInfo = {
@@ -612,13 +635,8 @@ app.get('/liquor/search/:liquorname', async (req, res) => {
                 liquorType: liquorRow.liquorType,
                 liquorPrice: liquorRow.liquorPrice,
                 liquorDetail: liquorRow.liquorDetail,
-                liquorReview: reviewRows.map((reviewRow) => ({
-                    liquorReviewID: reviewRow.liquorReviewID,
-                    userNickname: reviewRow.userNickname,
-                    liquorStar: reviewRow.liquorStar,
-                    liquorReviewDetail: reviewRow.liquorReviewDetail,
-                    liquorReviewTime: reviewRow.liquorReviewTime
-                }))
+                liquorAvgStar: liquorAvgStar,
+                reviews: reviewRows,
             };
 
             liquorsInfo.push(liquorInfo);
@@ -1002,6 +1020,7 @@ app.get('/bar/reservation/:userID', async (req, res) => {
                 r.reservationID,
                 r.barID,
                 r.reservationTime,
+                r.reservationNum,
                 b.barName
             FROM reservation r
             JOIN bar b ON r.barID = b.barID
@@ -1022,6 +1041,7 @@ app.get('/bar/reservation/:userID', async (req, res) => {
                 barID: row.barID,
                 barName: row.barName,
                 reservationTime: row.reservationTime,
+                reservationNum: row.reservationNum
             }));
             res.json(reservationList);
         } else {
@@ -1033,7 +1053,49 @@ app.get('/bar/reservation/:userID', async (req, res) => {
     }
 });
 
-//로그인 아이디 복체크 api
+//예약 취소하기 api
+app.post('/bar/reservation/:reservationID', async (req, res) => {
+    try {
+        // 요청에서 필요한 정보 가져오기
+        const { userID } = req.body;
+        const { reservationID } = req.params;
+
+        // 데이터베이스 연결 초기화
+        const conn = db.init();
+
+        // 데이터베이스 연결
+        db.connect(conn);
+
+        // 예약 확인 쿼리
+        const checkReservationQuery = 'SELECT * FROM reservation WHERE reservationID = ? AND userID = ?';
+
+        // 쿼리 실행
+        const [reservationRows] = await conn.promise().query(checkReservationQuery, [reservationID, userID]);
+
+        // 예약이 존재하지 않으면 에러 응답
+        if (reservationRows.length === 0) {
+            conn.end(); // 연결 종료
+            return res.status(404).json({ error: '예약을 찾을 수 없습니다.' });
+        }
+
+        // 예약 취소 쿼리
+        const cancelReservationQuery = 'DELETE FROM reservation WHERE reservationID = ? AND userID = ?';
+
+        // 쿼리 실행
+        await conn.promise().query(cancelReservationQuery, [reservationID, userID]);
+
+        // 연결 종료
+        conn.end();
+
+        // 성공 응답
+        res.json({ success: true });
+    } catch (error) {
+        console.error('에러:', error);
+        res.status(500).json({ error: '내부 서버 오류' });
+    }
+});
+
+//로그인 아이디 중복체크 api
 app.get('/signup/loginID/:loginID', async (req, res) => {
     try {
         // 요청에서 loginID 파라미터 가져오기

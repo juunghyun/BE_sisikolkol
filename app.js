@@ -1009,7 +1009,7 @@ app.post('/bar/reservation/:barID', async (req, res) => {
     }
 });
 
-//예약내역 불러오기 api
+//예약내역 불러오기 api (유저 이름)
 app.get('/bar/reservation/:userID', async (req, res) => {
     try {
         // 요청에서 userID 파라미터 가져오기
@@ -1057,6 +1057,62 @@ app.get('/bar/reservation/:userID', async (req, res) => {
             res.json([]);
         }
     } catch (error) {
+        console.error('에러:', error);
+        res.status(500).json({ error: '내부 서버 오류' });
+    }
+});
+
+//예약내역 불러오기 api (가게 아이디)
+app.get('/bar/reservation/:barID', async (req, res) => {
+    try {
+        // Get the barID parameter from the request
+        const barID = req.params.barID;
+
+        // Initialize the database connection
+        const conn = db.init();
+
+        // Connect to the database
+        db.connect(conn);
+
+        // Query to retrieve reservation information for the specified bar
+        const getReservationQuery = `
+            SELECT 
+                r.reservationID,
+                r.userID,
+                r.barID,
+                r.reservationTime,
+                r.reservationNum,
+                b.barName
+            FROM reservation r
+            JOIN bar b ON r.barID = b.barID
+            WHERE r.barID = ?
+            ORDER BY r.reservationTime DESC
+        `;
+
+        // Execute the query
+        const [reservationRows] = await conn.promise().query(getReservationQuery, [barID]);
+
+        // Close the database connection
+        conn.end();
+
+        // Send the response to the client
+        if (reservationRows.length > 0) {
+            // If there are reservations, send an array of reservation objects
+            const reservationList = reservationRows.map((row) => ({
+                reservationID: row.reservationID,
+                userID: row.userID,
+                barID: row.barID,
+                barName: row.barName,
+                reservationTime: row.reservationTime,
+                reservationNum: row.reservationNum
+            }));
+            res.json(reservationList);
+        } else {
+            // If there are no reservations, send an empty array
+            res.json([]);
+        }
+    } catch (error) {
+        // Handle errors
         console.error('에러:', error);
         res.status(500).json({ error: '내부 서버 오류' });
     }
@@ -1171,7 +1227,7 @@ app.get('/signup/userNickname/:userNickname', async (req, res) => {
     }
 });
 
-//회원가입 api -> 여기서 중복체크도 해줌
+//회원가입 api -> 여기서 중복체크(아이디, 닉네임, deviceID)도 해줌
 app.post('/signup', async (req, res) => {
     try {
         // 요청에서 필요한 정보 가져오기
@@ -1207,6 +1263,18 @@ app.post('/signup', async (req, res) => {
             return res.status(400).json({ error: '이미 존재하는 닉네임입니다.' });
         }
 
+        // 중복 deviceID 확인 쿼리
+        const checkDuplicateDeviceIDQuery = 'SELECT * FROM user WHERE deviceID = ?';
+
+        // 쿼리 실행
+        const [deviceIDRows] = await conn.promise().query(checkDuplicateDeviceIDQuery, [deviceID]);
+
+        // 중복 deviceID가 있으면 에러 응답
+        if (deviceIDRows.length > 0) {
+            conn.end(); // 연결 종료
+            return res.status(400).json({ error: '이미 등록된 기기입니다.' });
+        }
+
         // 사용자 등록 쿼리
         const insertUserQuery = 'INSERT INTO user (loginID, loginPW, userNickname, userName, userEmail, deviceID) VALUES (?, ?, ?, ?, ?, ?)';
 
@@ -1223,6 +1291,138 @@ app.post('/signup', async (req, res) => {
         res.status(500).json({ error: '내부 서버 오류' });
     }
 });
+
+//찜한 주류순 추천 api
+app.get('/liquor/recommendation', async (req, res) => {
+    try {
+        // 데이터베이스 연결 초기화
+        const conn = db.init();
+
+        // 데이터베이스 연결
+        db.connect(conn);
+
+        // liquor_favor 테이블에서 가장 많이 찜받은 5개 주류의 liquorID 가져오기
+        const favorQuery = `
+            SELECT liquorID, COUNT(liquorID) as favorCount
+            FROM liquor_favor
+            GROUP BY liquorID
+            ORDER BY favorCount DESC
+            LIMIT 5
+        `;
+
+        // 쿼리 실행
+        const [favorRows] = await conn.promise().query(favorQuery);
+
+        // 해당 liquorID를 가지고 liquor 테이블에서 정보 가져오기
+        const liquorInfoList = [];
+        for (const favorRow of favorRows) {
+            const { liquorID } = favorRow;
+
+            const liquorQuery = `
+                SELECT liquorID, liquorName
+                FROM liquor
+                WHERE liquorID = ?
+            `;
+
+            const [liquorRows] = await conn.promise().query(liquorQuery, [liquorID]);
+
+            if (liquorRows.length > 0) {
+                // 해당 liquorID를 가지고 liquor_review에서 liqourStar의 평균치 가져오기
+                const reviewQuery = `
+                    SELECT AVG(liquorStar) as averageStar
+                    FROM liquor_review
+                    WHERE liquorID = ?
+                `;
+
+                const [reviewRows] = await conn.promise().query(reviewQuery, [liquorID]);
+
+                const liquorInfo = {
+                    liquorID: liquorRows[0].liquorID,
+                    liquorName: liquorRows[0].liquorName,
+                    averageStar: reviewRows[0] ? reviewRows[0].averageStar : null,
+                };
+
+                liquorInfoList.push(liquorInfo);
+            }
+        }
+
+        // 연결 종료
+        conn.end();
+
+        // 클라이언트에 응답 보내기
+        res.json(liquorInfoList);
+    } catch (error) {
+        console.error('에러:', error);
+        res.status(500).json({ error: '내부 서버 오류' });
+    }
+});
+
+//찜한 가게순 추천 api
+app.get('/bar/recommendation', async (req, res) => {
+    try {
+        // 데이터베이스 연결 초기화
+        const conn = db.init();
+
+        // 데이터베이스 연결
+        db.connect(conn);
+
+        // bar_favor 테이블에서 가장 많이 찜받은 5개 가게의 barID 가져오기
+        const favorQuery = `
+            SELECT barID, COUNT(barID) as favorCount
+            FROM bar_favor
+            GROUP BY barID
+            ORDER BY favorCount DESC
+            LIMIT 5
+        `;
+
+        // 쿼리 실행
+        const [favorRows] = await conn.promise().query(favorQuery);
+
+        // 해당 barID를 가지고 bar 테이블에서 정보 가져오기
+        const barInfoList = [];
+        for (const favorRow of favorRows) {
+            const { barID } = favorRow;
+
+            const barQuery = `
+                SELECT barID, barName, barType
+                FROM bar
+                WHERE barID = ?
+            `;
+
+            const [barRows] = await conn.promise().query(barQuery, [barID]);
+
+            if (barRows.length > 0) {
+                // 해당 barID를 가지고 bar_review에서 barStar의 평균치 가져오기
+                const reviewQuery = `
+                    SELECT AVG(barStar) as averageStar
+                    FROM bar_review
+                    WHERE barID = ?
+                `;
+
+                const [reviewRows] = await conn.promise().query(reviewQuery, [barID]);
+
+                const barInfo = {
+                    barID: barRows[0].barID,
+                    barName: barRows[0].barName,
+                    barType: barRows[0].barType,
+                    averageStar: reviewRows[0] ? reviewRows[0].averageStar : null,
+                };
+
+                barInfoList.push(barInfo);
+            }
+        }
+
+        // 연결 종료
+        conn.end();
+
+        // 클라이언트에 응답 보내기
+        res.json(barInfoList);
+    } catch (error) {
+        console.error('에러:', error);
+        res.status(500).json({ error: '내부 서버 오류' });
+    }
+});
+
 
 app.get('/dog', (req, res) => {
     res.json({a: 30, b:40});

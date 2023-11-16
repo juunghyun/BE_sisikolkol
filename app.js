@@ -199,7 +199,7 @@ app.get('/bar/search/:barname', async (req, res) => {
         const [barRows] = await conn.promise().query(barQuery, [`%${barname}%`]);
 
         // 연결 종료
-        //conn.end();
+        conn.end();
 
         // 클라이언트에 응답 보내기
         if (barRows.length > 0) {

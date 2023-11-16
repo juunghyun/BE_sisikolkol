@@ -1032,6 +1032,8 @@ app.get('/bar/reservation/:userID', async (req, res) => {
             FROM reservation r
             JOIN bar b ON r.barID = b.barID
             WHERE r.userID = ?
+            ORDER BY r.reservationTime DESC
+
         `;
 
         // 쿼리 실행

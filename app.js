@@ -1074,7 +1074,7 @@ app.get('/bar/reservation/manage/:barID', async (req, res) => {
         // Connect to the database
         db.connect(conn);
 
-        // Query to retrieve reservation information for the specified bar
+        // Query to retrieve reservation information for the specified bar with userName
         const getReservationQuery = `
             SELECT 
                 r.reservationID,
@@ -1082,9 +1082,11 @@ app.get('/bar/reservation/manage/:barID', async (req, res) => {
                 r.barID,
                 r.reservationTime,
                 r.reservationNum,
-                b.barName
+                b.barName,
+                u.userName
             FROM reservation r
             JOIN bar b ON r.barID = b.barID
+            JOIN user u ON r.userID = u.userID
             WHERE r.barID = ?
             ORDER BY r.reservationTime DESC
         `;
@@ -1103,6 +1105,7 @@ app.get('/bar/reservation/manage/:barID', async (req, res) => {
                 userID: row.userID,
                 barID: row.barID,
                 barName: row.barName,
+                userName: row.userName,
                 reservationTime: row.reservationTime,
                 reservationNum: row.reservationNum
             }));

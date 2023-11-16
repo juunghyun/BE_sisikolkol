@@ -1054,7 +1054,7 @@ app.get('/bar/reservation/:userID', async (req, res) => {
             }));
             res.json(reservationList);
         } else {
-            res.status(404).json({ error: '예약 내역을 찾을 수 없습니다.' });
+            res.json([]);
         }
     } catch (error) {
         console.error('에러:', error);
@@ -1063,7 +1063,7 @@ app.get('/bar/reservation/:userID', async (req, res) => {
 });
 
 //예약 취소하기 api
-app.post('/bar/reservation/:reservationID', async (req, res) => {
+app.post('/bar/reservation/cancel/:reservationID', async (req, res) => {
     try {
         // 요청에서 필요한 정보 가져오기
         const { userID } = req.body;

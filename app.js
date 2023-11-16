@@ -192,7 +192,7 @@ app.get('/bar/search/:barname', async (req, res) => {
         const [barRows] = await conn.promise().query(barQuery, [`%${barname}%`]);
 
         // 연결 종료
-        conn.end();
+        // conn.end();
 
         // 클라이언트에 응답 보내기
         if (barRows.length > 0) {
@@ -233,6 +233,9 @@ app.get('/bar/search/:barname', async (req, res) => {
         } else {
             res.status(404).json({ error: '가게 정보를 찾을 수 없습니다.' });
         }
+        
+        conn.end();
+        
     } catch (error) {
         console.error('에러:', error);
         res.status(500).json({ error: '내부 서버 오류' });
@@ -1030,7 +1033,7 @@ app.get('/bar/reservation/:userID', async (req, res) => {
     }
 });
 
-//로그인 아이디 중복체크 api
+//로그인 아이디 복체크 api
 app.get('/signup/loginID/:loginID', async (req, res) => {
     try {
         // 요청에서 loginID 파라미터 가져오기
@@ -1086,6 +1089,7 @@ app.get('/signup/userNickname/:userNickname', async (req, res) => {
 
         // 클라이언트에 응답 보내기
         if (userRows.length > 0) {
+            console.log("DD")
             res.status(400).json({ error: '이미 존재하는 닉네임입니다.' });
         } else {
             res.json({ message: '사용 가능한 닉네임입니다.' });

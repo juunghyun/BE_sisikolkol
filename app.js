@@ -1063,7 +1063,7 @@ app.get('/bar/reservation/:userID', async (req, res) => {
 });
 
 //예약내역 불러오기 api (가게 아이디)
-app.get('/bar/reservation/:barID', async (req, res) => {
+app.get('/bar/reservation/manage/:barID', async (req, res) => {
     try {
         // Get the barID parameter from the request
         const barID = req.params.barID;

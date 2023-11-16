@@ -1083,7 +1083,7 @@ app.get('/bar/reservation/manage/:barID', async (req, res) => {
                 r.reservationTime,
                 r.reservationNum,
                 b.barName,
-                u.userName
+                u.userNickname
             FROM reservation r
             JOIN bar b ON r.barID = b.barID
             JOIN user u ON r.userID = u.userID
@@ -1105,7 +1105,7 @@ app.get('/bar/reservation/manage/:barID', async (req, res) => {
                 userID: row.userID,
                 barID: row.barID,
                 barName: row.barName,
-                userName: row.userName,
+                userNickname: row.userNickname,
                 reservationTime: row.reservationTime,
                 reservationNum: row.reservationNum
             }));

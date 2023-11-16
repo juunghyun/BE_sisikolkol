@@ -199,7 +199,7 @@ app.get('/bar/search/:barname', async (req, res) => {
         const [barRows] = await conn.promise().query(barQuery, [`%${barname}%`]);
 
         // 연결 종료
-        conn.end();
+        //conn.end();
 
         // 클라이언트에 응답 보내기
         if (barRows.length > 0) {
@@ -1028,6 +1028,8 @@ app.get('/bar/reservation/:userID', async (req, res) => {
             FROM reservation r
             JOIN bar b ON r.barID = b.barID
             WHERE r.userID = ?
+            ORDER BY r.reservationTime DESC
+
         `;
 
         // 쿼리 실행

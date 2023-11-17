@@ -274,7 +274,8 @@ app.get('/bar/info/:barID', async (req, res) => {
             barLongitude,
             barDetail,
             barStartTime,
-            barEndTime
+            barEndTime,
+            barCorkPrice
           FROM bar
           WHERE barID = ?
         `;
@@ -329,6 +330,7 @@ app.get('/bar/info/:barID', async (req, res) => {
                     barDetail: row.barDetail,
                     barStartTime: row.barStartTime,
                     barEndTime: row.barEndTime,
+                    barCorkPrice: row.barCorkPrice,
                     barReservation: reservations,
                     barReview: reviews,
                     barStarAverage: barStarAverage,
@@ -344,6 +346,7 @@ app.get('/bar/info/:barID', async (req, res) => {
                     barLatitude: Number(barRows[0].barLatitude),
                     barLongitude: Number(barRows[0].barLongitude),
                     barDetail: barRows[0].barDetail,
+                    barCorkPrice: barRows[0].barCorkPrice,
                     barReservation: reservations,
                     barReview: reviews,
                     barStarAverage: barStarAverage,
